@@ -1,3 +1,65 @@
+export interface Location {
+  id: string
+  name: string
+  address: string
+  isActive: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+export interface CabinetPhoto {
+  id: string
+  cabinetId: string
+  urlOriginal: string
+  urlMedium: string
+  urlCompressed: string
+  sortOrder: number
+  createdAt: string
+  deletedAt: string | null
+}
+
+export interface CabinetCategory {
+  cabinetId: string
+  categoryId: string
+  createdAt: string
+  category: {
+    id: string
+    name: string
+  }
+}
+
+export interface CabinetBooking {
+  id: string
+  startsAt: string
+  endsAt: string
+  status: string
+  paymentStatus: string
+  expiresAt: string
+  createdAt: string
+  paymentInitiatedAt: string | null
+  paidAt: string | null
+  confirmedAt: string | null
+}
+
+export interface Cabinet {
+  id: string
+  locationId: string
+  name: string
+  description: string
+  priceDay: string
+  priceNight: string
+  sortOrder: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+  photos: CabinetPhoto[]
+  cabinetCategories: CabinetCategory[]
+  bookings?: CabinetBooking[]
+}
+
 export interface Space {
   id: string
   title: string
@@ -41,7 +103,10 @@ export interface Subscription {
 export interface User {
   id: string
   phone: string
-  name?: string
+  name: string
+  surname: string
+  role: 'USER' | 'ADMIN'
+  createdAt: string
   subscription?: Subscription
 }
 

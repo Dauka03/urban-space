@@ -4,14 +4,19 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
+import { authApi } from '@/api/auth'
+import { ApiError } from '@/api/client'
+import type { User } from '@/types'
 
-const OTP_LENGTH = 4
+const OTP_LENGTH = 6
 
 export default function Otp() {
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''))
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const inputs = useRef<(HTMLInputElement | null)[]>([])
-  const { phone, setUser } = useAuthStore()
+
+  const { phone, mode, setAuth } = useAuthStore()
   const navigate = useNavigate()
 
   const handleChange = (index: number, value: string) => {
@@ -29,11 +34,49 @@ export default function Otp() {
   }
 
   const handleVerify = async () => {
+    setError('')
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 800))
-    setUser({ id: '1', phone })
-    setLoading(false)
-    navigate('/')
+    const code = digits.join('')
+
+    try {
+      const res =
+        mode === 'register'
+          ? await authApi.confirmRegister(phone, code)
+          : await authApi.verifyOtp(phone, code)
+
+      const user: User = {
+        ...res.user,
+        role: res.user.role as User['role'],
+      }
+
+      setAuth(res.accessToken, user)
+      navigate('/')
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setError('Неверный или истёкший код. Попробуйте ещё раз.')
+        setDigits(Array(OTP_LENGTH).fill(''))
+        inputs.current[0]?.focus()
+      } else {
+        setError('Что-то пошло не так. Попробуйте ещё раз.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setError('')
+    setDigits(Array(OTP_LENGTH).fill(''))
+    inputs.current[0]?.focus()
+
+    try {
+      if (mode === 'login') {
+        await authApi.requestOtp(phone)
+      }
+      // For register mode, re-sending would require name/surname — redirect back to auth
+    } catch {
+      setError('Не удалось повторно отправить код.')
+    }
   }
 
   const isComplete = digits.every(Boolean)
@@ -41,17 +84,20 @@ export default function Otp() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100svh-56px)] px-4">
       <div className="w-full max-w-sm">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-text-secondary mb-6 hover:text-text">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1 text-text-secondary mb-6 hover:text-text"
+        >
           <ChevronLeft size={20} />
           <span className="text-sm">Назад</span>
         </button>
 
         <h1 className="text-2xl font-bold text-text mb-1">Введите код</h1>
         <p className="text-sm text-text-secondary mb-8">
-          Код был отправлен на номер +7 {phone}
+          Код был отправлен на номер {phone}
         </p>
 
-        <div className="flex gap-3 mb-8">
+        <div className="flex gap-2 mb-4">
           {digits.map((d, i) => (
             <input
               key={i}
@@ -67,6 +113,8 @@ export default function Otp() {
           ))}
         </div>
 
+        {error && <p className="text-xs text-red-500 mb-4">{error}</p>}
+
         <Button fullWidth disabled={!isComplete || loading} onClick={handleVerify}>
           {loading ? 'Проверяем...' : 'Продолжить'}
         </Button>
@@ -77,7 +125,9 @@ export default function Otp() {
         </p>
 
         <div className="text-center mt-3">
-          <button className="text-sm text-primary hover:underline">Повторить</button>
+          <button onClick={handleResend} className="text-sm text-primary hover:underline">
+            Отправить повторно
+          </button>
         </div>
       </div>
     </div>

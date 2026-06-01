@@ -33,12 +33,14 @@ export default function Profile() {
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-primary-light flex items-center justify-center">
             <span className="text-primary font-semibold">
-              {user?.phone?.slice(-2) ?? 'U'}
+              {user?.name?.[0]?.toUpperCase() ?? 'U'}
             </span>
           </div>
           <div>
-            <p className="font-semibold text-text">{user?.name ?? 'Пользователь'}</p>
-            <p className="text-sm text-text-secondary">+7 {user?.phone}</p>
+            <p className="font-semibold text-text">
+              {user ? `${user.name} ${user.surname}` : 'Пользователь'}
+            </p>
+            <p className="text-sm text-text-secondary">{user?.phone}</p>
           </div>
         </div>
       </Card>
