@@ -3,23 +3,43 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { useBookingStore } from '@/store/bookingStore'
 
 const BANKS = [
   { id: 'halyk', name: 'Halyk Bank', emoji: '🟢' },
   { id: 'kaspi', name: 'Kaspi Bank', emoji: '🔴' },
 ]
 
-const AMOUNT = 600
-
 export default function Payment() {
+  const navigate = useNavigate()
+  const pending = useBookingStore((s) => s.pending)
+  const reset = useBookingStore((s) => s.reset)
   const [selectedBank, setSelectedBank] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [paid, setPaid] = useState(false)
-  const navigate = useNavigate()
+
+  if (!pending) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100svh-56px)] px-4 text-center">
+        <p className="text-text-secondary mb-6">Нет активного бронирования</p>
+        <Button onClick={() => navigate('/')}>На главную</Button>
+      </div>
+    )
+  }
+
+  const { cabinet, date, startTime, endTime, response } = pending
+  const amount = response.booking.totalAmount ?? 0
+  const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('ru', { day: '2-digit', month: 'long' })
 
   const handlePay = async () => {
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 1500))
+    // The API has already initiated payment and returned a payment link.
+    // Hand the user off to the bank's payment page.
+    await new Promise((r) => setTimeout(r, 800))
+    if (response.paymentUrl) {
+      window.location.href = response.paymentUrl
+      return
+    }
     setLoading(false)
     setPaid(true)
   }
@@ -30,7 +50,14 @@ export default function Payment() {
         <CheckCircle2 size={64} className="text-success mb-4" />
         <h2 className="text-xl font-bold text-text mb-2">Оплачено!</h2>
         <p className="text-sm text-text-secondary mb-6">Бронирование подтверждено</p>
-        <Button onClick={() => navigate('/')}>На главную</Button>
+        <Button
+          onClick={() => {
+            reset()
+            navigate('/')
+          }}
+        >
+          На главную
+        </Button>
       </div>
     )
   }
@@ -39,11 +66,25 @@ export default function Payment() {
     <div className="max-w-screen-sm mx-auto px-4 py-6">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-text-secondary mb-6 hover:text-text">
         <ChevronLeft size={20} />
-        <span className="text-sm">Payment</span>
+        <span className="text-sm">Назад</span>
       </button>
 
       <h1 className="text-xl font-bold text-text mb-1">Способ оплаты</h1>
-      <p className="text-2xl font-bold text-text mt-2 mb-6">{AMOUNT.toLocaleString()} ₸</p>
+
+      <Card className="my-4">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm text-text-secondary">Кабинет</span>
+          <span className="text-sm font-medium text-text">«{cabinet.name}»</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-text-secondary">Дата и время</span>
+          <span className="text-sm font-medium text-text">
+            {dateLabel}, {startTime}–{endTime}
+          </span>
+        </div>
+      </Card>
+
+      <p className="text-2xl font-bold text-text mb-6">{amount.toLocaleString()} ₸</p>
 
       <Card padding={false} className="overflow-hidden mb-4">
         {BANKS.map((bank, i) => (

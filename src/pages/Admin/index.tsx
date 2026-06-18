@@ -1,59 +1,53 @@
-import { TrendingUp, Users, LayoutGrid } from 'lucide-react'
-import { Card } from '@/components/ui/Card'
+import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
+import { useAuthStore } from '@/store/authStore'
+import { DashboardTab } from './DashboardTab'
+import { BookingsTab } from './BookingsTab'
+import { CabinetsTab } from './CabinetsTab'
+import { LocationsTab } from './LocationsTab'
+import { CategoriesTab } from './CategoriesTab'
 
-const STATS = [
-  { label: 'Выручка', value: '2 184 500 ₸', growth: '+15%', icon: TrendingUp },
-  { label: 'Клиенты', value: '284', growth: '+15%', icon: Users },
-  { label: 'Кабинеты', value: '18', growth: '+10%', icon: LayoutGrid },
-]
+const TABS = [
+  { key: 'dashboard', label: 'Дашборд' },
+  { key: 'bookings', label: 'Брони' },
+  { key: 'cabinets', label: 'Кабинеты' },
+  { key: 'locations', label: 'Локации' },
+  { key: 'categories', label: 'Категории' },
+] as const
 
-const SCHEDULE = [
-  { time: '11:00', client: 'Алена Юсупова', cabinet: '№4', master: 'Маникюр + покрытие', masterName: 'Олег П.' },
-  { time: '12:00', client: 'Денис Сатпаев', cabinet: '№2', master: 'Стрижка', masterName: 'Мария К.' },
-  { time: '14:30', client: 'Камила Ахметова', cabinet: '№1', master: 'Маникюр', masterName: 'Олена Д.' },
-]
+type TabKey = (typeof TABS)[number]['key']
 
 export default function Admin() {
+  const user = useAuthStore((s) => s.user)
+  const [tab, setTab] = useState<TabKey>('dashboard')
+
+  if (!user) return <Navigate to="/auth" replace />
+  if (user.role !== 'ADMIN') {
+    return <div className="p-8 text-center text-text-secondary">Доступ только для администратора</div>
+  }
+
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
       <h1 className="text-xl font-bold text-text mb-6">Admin Dashboard</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        {STATS.map((s) => (
-          <Card key={s.label}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-text-secondary mb-1">{s.label}</p>
-                <p className="text-xl font-bold text-text">{s.value}</p>
-              </div>
-              <div className="w-9 h-9 rounded-xl bg-primary-light flex items-center justify-center">
-                <s.icon size={18} className="text-primary" />
-              </div>
-            </div>
-            <p className="text-xs text-success mt-2 font-medium">{s.growth}</p>
-          </Card>
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors
+              ${tab === t.key ? 'bg-primary text-white' : 'bg-surface-2 text-text-secondary hover:bg-border'}`}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
-      <div>
-        <h2 className="font-semibold text-text mb-3">Записи на сегодня</h2>
-        <div className="flex flex-col gap-3">
-          {SCHEDULE.map((entry, i) => (
-            <Card key={i}>
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-semibold text-primary w-12 shrink-0">{entry.time}</span>
-                <div className="flex-1">
-                  <p className="font-medium text-text">{entry.client} · {entry.cabinet}</p>
-                  <p className="text-sm text-text-secondary">{entry.master}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-text-secondary">{entry.masterName}</p>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
+      {tab === 'dashboard' && <DashboardTab />}
+      {tab === 'bookings' && <BookingsTab />}
+      {tab === 'cabinets' && <CabinetsTab />}
+      {tab === 'locations' && <LocationsTab />}
+      {tab === 'categories' && <CategoriesTab />}
     </div>
   )
 }

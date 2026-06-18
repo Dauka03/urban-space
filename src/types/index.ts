@@ -30,6 +30,25 @@ export interface CabinetCategory {
   }
 }
 
+export interface Category {
+  id: string
+  name: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+export interface DashboardAnalytics {
+  period: { type: string; from: string; to: string }
+  revenue: { total: number; previousTotal: number; change: number; currency: string }
+  clients: { total: number; previousTotal: number; change: number }
+  bookings: {
+    successful: { count: number; previousCount: number; change: number }
+    cancelled: { count: number; previousCount: number; change: number }
+  }
+}
+
 export interface CabinetBooking {
   id: string
   startsAt: string

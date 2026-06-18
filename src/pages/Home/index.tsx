@@ -4,23 +4,25 @@ import { Input } from '@/components/ui/Input'
 import { CabinetCard } from './CabinetCard'
 import { locationsApi } from '@/api/locations'
 import { cabinetsApi } from '@/api/cabinets'
-import type { Location, Cabinet } from '@/types'
-
-const FILTERS = ['Все', 'Новинки', 'Переговорки', 'Бюджет', 'Кабинеты', 'Массаж']
+import { categoriesApi } from '@/api/categories'
+import type { Location, Cabinet, Category } from '@/types'
 
 const ALL_LOCATIONS_ID = '__all__'
+const ALL_CATEGORIES_ID = '__all__'
 
 export default function Home() {
-  const [activeFilter, setActiveFilter] = useState('Все')
+  const [activeCategoryId, setActiveCategoryId] = useState(ALL_CATEGORIES_ID)
   const [search, setSearch] = useState('')
   const [activeLocationId, setActiveLocationId] = useState(ALL_LOCATIONS_ID)
 
   const [locations, setLocations] = useState<Location[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [cabinets, setCabinets] = useState<Cabinet[]>([])
   const [loadingCabinets, setLoadingCabinets] = useState(true)
 
   useEffect(() => {
     locationsApi.getAll().then(setLocations).catch(() => {})
+    categoriesApi.getAll().then(setCategories).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -33,9 +35,13 @@ export default function Home() {
       .finally(() => setLoadingCabinets(false))
   }, [activeLocationId])
 
-  const filtered = cabinets.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = cabinets.filter((c) => {
+    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase())
+    const matchesCategory =
+      activeCategoryId === ALL_CATEGORIES_ID ||
+      c.cabinetCategories.some((cc) => cc.category.id === activeCategoryId)
+    return matchesSearch && matchesCategory
+  })
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
@@ -78,21 +84,33 @@ export default function Home() {
         </div>
       )}
 
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
-        {FILTERS.map((f) => (
+      {categories.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
           <button
-            key={f}
-            onClick={() => setActiveFilter(f)}
+            onClick={() => setActiveCategoryId(ALL_CATEGORIES_ID)}
             className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-              ${activeFilter === f
+              ${activeCategoryId === ALL_CATEGORIES_ID
                 ? 'bg-primary text-white'
                 : 'bg-surface-2 text-text-secondary hover:bg-border'
               }`}
           >
-            {f}
+            Все
           </button>
-        ))}
-      </div>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategoryId(cat.id)}
+              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors
+                ${activeCategoryId === cat.id
+                  ? 'bg-primary text-white'
+                  : 'bg-surface-2 text-text-secondary hover:bg-border'
+                }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loadingCabinets ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">

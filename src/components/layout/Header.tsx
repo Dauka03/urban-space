@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
-import { User } from 'lucide-react'
+import { User, LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 
 export function Header() {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-border">
@@ -17,9 +17,16 @@ export function Header() {
 
         <nav className="flex items-center gap-2">
           {isAuthenticated ? (
-            <Link to="/profile" className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center">
-              <User size={18} className="text-text-secondary" />
-            </Link>
+            <>
+              {user?.role === 'ADMIN' && (
+                <Link to="/admin" className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center" title="Админка">
+                  <LayoutDashboard size={18} className="text-text-secondary" />
+                </Link>
+              )}
+              <Link to="/profile" className="w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center">
+                <User size={18} className="text-text-secondary" />
+              </Link>
+            </>
           ) : (
             <Link to="/auth" className="text-sm font-medium text-primary hover:underline">
               Войти
