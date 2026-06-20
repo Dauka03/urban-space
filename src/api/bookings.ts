@@ -41,7 +41,7 @@ export interface BookingListResponse {
   items: AdminBooking[]
 }
 
-export interface BookingListParams {
+export type BookingListParams = {
   /** Single calendar day (YYYY-MM-DD) */
   date?: string
   from?: string

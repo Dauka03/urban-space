@@ -1,7 +1,7 @@
 import { apiClient, authHeaders, buildQuery } from './client'
 import type { DashboardAnalytics } from '@/types'
 
-export interface DashboardParams {
+export type DashboardParams = {
   /** e.g. 'day' | 'week' | 'month' — period to aggregate over */
   period?: string
   from?: string
