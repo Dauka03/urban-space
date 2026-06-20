@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { cabinetsApi } from '@/api/cabinets'
@@ -10,8 +10,17 @@ import { useAuthStore } from '@/store/authStore'
 import { useBookingStore } from '@/store/bookingStore'
 import type { Cabinet } from '@/types'
 
-// Bookable hours of the day. Start uses all but the last, end uses any later hour.
-const HOURS = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00']
+// Bookable window in 30-min steps. The final point (19:00) is end-only — you can't start there.
+const SLOTS = (() => {
+  const out: string[] = []
+  for (let m = 9 * 60; m <= 19 * 60; m += 30) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)
+  }
+  return out
+})()
+const LAST_SLOT = SLOTS[SLOTS.length - 1]
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
 export default function SpaceDetail() {
   const { id } = useParams<{ id: string }>()
@@ -23,8 +32,9 @@ export default function SpaceDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [startTime, setStartTime] = useState<string | null>(null)
-  const [endTime, setEndTime] = useState<string | null>(null)
+  // Confirmed booking ranges for the day, plus the in-progress start awaiting an end.
+  const [ranges, setRanges] = useState<{ start: string; end: string }[]>([])
+  const [pendingStart, setPendingStart] = useState<string | null>(null)
   const [photoIndex, setPhotoIndex] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -51,63 +61,100 @@ export default function SpaceDetail() {
   const photos = cabinet.photos.slice().sort((a, b) => a.sortOrder - b.sortOrder)
   const categories = cabinet.cabinetCategories.map((cc) => cc.category.name)
 
-  // Local "HH:00" start-hours of every slot already occupied by a booking on the selected date.
-  const bookedHours = (() => {
+  // 30-min slots already occupied by a booking on the selected date (interval-start keys "HH:MM").
+  const bookedSlots = (() => {
     const set = new Set<string>()
     if (!selectedDate || !cabinet.bookings) return set
     for (const b of cabinet.bookings) {
       const end = new Date(b.endsAt)
-      for (const t = new Date(b.startsAt); t < end; t.setHours(t.getHours() + 1)) {
+      const t = new Date(b.startsAt)
+      t.setMinutes(t.getMinutes() < 30 ? 0 : 30, 0, 0) // align to the 30-min slot boundary
+      for (; t < end; t.setMinutes(t.getMinutes() + 30)) {
         const key = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
-        if (key === selectedDate) set.add(`${String(t.getHours()).padStart(2, '0')}:00`)
+        if (key === selectedDate)
+          set.add(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`)
       }
     }
     return set
   })()
 
-  // A start slot is in the past if its hour on the selected date has already begun.
-  const now = new Date()
-  const isPast = (h: string) =>
-    selectedDate ? new Date(`${selectedDate}T${h}:00`) <= now : false
-
-  const startOptions = HOURS.slice(0, -1).filter((h) => !bookedHours.has(h) && !isPast(h))
-  // Allow end hours only up to the first booked slot after the chosen start.
-  const endOptions = (() => {
-    if (!startTime) return []
-    const result: string[] = []
-    for (const h of HOURS) {
-      if (h <= startTime) continue
-      const prevHour = `${String(Number(h.slice(0, 2)) - 1).padStart(2, '0')}:00`
-      if (bookedHours.has(prevHour)) break
-      result.push(h)
-    }
-    return result
+  // 30-min slots already taken by one of the ranges the user has confirmed for this day.
+  const selectedSlots = (() => {
+    const set = new Set<string>()
+    for (const r of ranges) for (let m = toMin(r.start); m < toMin(r.end); m += 30) set.add(fmtMin(m))
+    return set
   })()
-  const durationHours = startTime && endTime ? Number(endTime.slice(0, 2)) - Number(startTime.slice(0, 2)) : 0
-  const canSubmit = Boolean(selectedDate && startTime && endTime) && !submitting
 
-  const handleSelectStart = (h: string) => {
-    setStartTime(h)
+  const now = new Date()
+  const isPast = (t: string) => (selectedDate ? new Date(`${selectedDate}T${t}:00`) <= now : false)
+  // A 30-min interval starting at `t` is unavailable if it's booked, already chosen, or in the past.
+  const isBlocked = (t: string) => bookedSlots.has(t) || selectedSlots.has(t) || isPast(t)
+  // A slot can start a range if it isn't the final point and its own interval is free.
+  const canStart = (t: string) => t !== LAST_SLOT && !isBlocked(t)
+
+  const startMin = pendingStart ? toMin(pendingStart) : null
+  const choosingEnd = pendingStart !== null
+  // Furthest end reachable from the in-progress start before hitting a busy/chosen/past slot.
+  const maxEndMin = (() => {
+    if (startMin === null) return null
+    let m = startMin
+    while (m < toMin(LAST_SLOT) && !isBlocked(fmtMin(m))) m += 30
+    return m
+  })()
+  const isValidEnd = (t: string) =>
+    startMin !== null && maxEndMin !== null && toMin(t) > startMin && toMin(t) <= maxEndMin
+
+  const totalMin = ranges.reduce((sum, r) => sum + (toMin(r.end) - toMin(r.start)), 0)
+  const fmtDuration = (min: number) => {
+    const h = Math.floor(min / 60)
+    const m = min % 60
+    return [h ? `${h} ч` : '', m ? `${m} мин` : ''].filter(Boolean).join(' ')
+  }
+  const canSubmit = ranges.length > 0 && !submitting
+
+  // Multi-range picker: 1st click sets a start, a 2nd valid click confirms the range and starts over.
+  const handleSlotClick = (t: string) => {
     setSubmitError(null)
-    // Keep end only if it's still after the new start.
-    if (endTime && endTime <= h) setEndTime(null)
+    if (choosingEnd && isValidEnd(t)) {
+      setRanges((prev) => [...prev, { start: pendingStart!, end: t }].sort((a, b) => toMin(a.start) - toMin(b.start)))
+      setPendingStart(null)
+      return
+    }
+    if (t === pendingStart) {
+      setPendingStart(null)
+      return
+    }
+    if (canStart(t)) setPendingStart(t)
+  }
+  // During end-selection, allow valid ends and any fresh start; otherwise only valid starts.
+  const slotDisabled = (t: string) =>
+    choosingEnd ? !(isValidEnd(t) || canStart(t)) : !canStart(t)
+
+  const resetSelection = () => {
+    setRanges([])
+    setPendingStart(null)
+    setSubmitError(null)
   }
 
   const handleSubmit = async () => {
-    if (!selectedDate || !startTime || !endTime) return
+    if (!selectedDate || ranges.length === 0) return
     if (!isAuthenticated) {
       navigate('/auth')
       return
     }
 
-    const startsAt = new Date(`${selectedDate}T${startTime}:00`).toISOString()
-    const endsAt = new Date(`${selectedDate}T${endTime}:00`).toISOString()
-
     setSubmitting(true)
     setSubmitError(null)
     try {
-      const response = await bookingsApi.create({ cabinetId: cabinet.id, startsAt, endsAt })
-      setPending({ cabinet, date: selectedDate, startTime, endTime, startsAt, endsAt, response })
+      // One booking request per selected range; collect them for the payment step.
+      const slots = []
+      for (const r of ranges) {
+        const startsAt = new Date(`${selectedDate}T${r.start}:00`).toISOString()
+        const endsAt = new Date(`${selectedDate}T${r.end}:00`).toISOString()
+        const response = await bookingsApi.create({ cabinetId: cabinet.id, startsAt, endsAt })
+        slots.push({ startTime: r.start, endTime: r.end, startsAt, endsAt, response })
+      }
+      setPending({ cabinet, date: selectedDate, slots })
       navigate('/payment')
     } catch (e) {
       if (e instanceof ApiError) {
@@ -115,7 +162,7 @@ export default function SpaceDetail() {
           navigate('/auth')
           return
         }
-        if (e.status === 409) setSubmitError('Это время уже занято — выберите другой слот')
+        if (e.status === 409) setSubmitError('Одно из выбранных времён уже занято — измените выбор')
         else if (e.status === 403) setSubmitError('Бронирование доступно только для пользователей')
         else if (e.status === 404) setSubmitError('Кабинет недоступен для бронирования')
         else setSubmitError('Не удалось создать бронирование. Попробуйте ещё раз')
@@ -194,39 +241,78 @@ export default function SpaceDetail() {
 
         {selectedDate && (
           <Card className="mt-3">
-            <p className="text-sm font-medium text-text mb-3">Время начала</p>
-            <div className="grid grid-cols-5 gap-2">
-              {startOptions.map((t) => (
+            <div className="flex items-baseline justify-between mb-1">
+              <p className="text-sm font-medium text-text">Время аренды</p>
+              {(ranges.length > 0 || pendingStart) && (
                 <button
-                  key={t}
-                  onClick={() => handleSelectStart(t)}
-                  className={`py-2 rounded-xl text-sm font-medium transition-colors
-                    ${startTime === t ? 'bg-primary text-white' : 'bg-surface-2 text-text hover:bg-border'}`}
+                  type="button"
+                  onClick={resetSelection}
+                  className="text-xs text-text-secondary hover:text-text"
                 >
-                  {t}
+                  Сбросить всё
                 </button>
-              ))}
+              )}
             </div>
-          </Card>
-        )}
+            <p className="text-xs text-text-secondary mb-3">
+              {pendingStart
+                ? `Начало ${pendingStart} — выберите время окончания`
+                : ranges.length > 0
+                  ? 'Можно добавить ещё один промежуток'
+                  : 'Выберите время начала'}
+            </p>
 
-        {startTime && (
-          <Card className="mt-3">
-            <p className="text-sm font-medium text-text mb-3">Время окончания</p>
-            <div className="grid grid-cols-5 gap-2">
-              {endOptions.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setEndTime(t)
-                    setSubmitError(null)
-                  }}
-                  className={`py-2 rounded-xl text-sm font-medium transition-colors
-                    ${endTime === t ? 'bg-primary text-white' : 'bg-surface-2 text-text hover:bg-border'}`}
-                >
-                  {t}
-                </button>
-              ))}
+            {ranges.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {ranges.map((r) => (
+                  <span
+                    key={r.start}
+                    className="inline-flex items-center gap-1 text-xs font-medium bg-primary/15 text-primary pl-2.5 pr-1.5 py-1 rounded-full"
+                  >
+                    {r.start}–{r.end}
+                    <button
+                      type="button"
+                      aria-label={`Убрать ${r.start}–${r.end}`}
+                      onClick={() => setRanges((prev) => prev.filter((x) => x.start !== r.start))}
+                      className="rounded-full hover:bg-primary/20 p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-4 gap-2">
+              {SLOTS.map((t) => {
+                const m = toMin(t)
+                const edge =
+                  t === pendingStart || ranges.some((r) => r.start === t || r.end === t)
+                const inRange = ranges.some((r) => m > toMin(r.start) && m < toMin(r.end))
+                const unavailable = bookedSlots.has(t) || isPast(t)
+                const disabled = slotDisabled(t)
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => handleSlotClick(t)}
+                    className={`py-2 rounded-xl text-sm font-medium transition-colors
+                      ${
+                        edge
+                          ? 'bg-primary text-white'
+                          : inRange
+                            ? 'bg-primary/15 text-primary'
+                            : unavailable
+                              ? 'bg-surface-2 text-text-secondary/40 line-through cursor-not-allowed'
+                              : disabled
+                                ? 'bg-surface-2 text-text-secondary/40 cursor-not-allowed'
+                                : 'bg-surface-2 text-text hover:bg-border'
+                      }`}
+                  >
+                    {t}
+                  </button>
+                )
+              })}
             </div>
           </Card>
         )}
@@ -241,11 +327,12 @@ export default function SpaceDetail() {
             <span className="text-sm font-semibold text-text">{Number(cabinet.priceNight).toLocaleString()} ₸</span>
           </div>
 
-          {startTime && endTime && (
-            <div className="flex items-center justify-between mb-4 text-sm">
+          {ranges.length > 0 && (
+            <div className="flex items-start justify-between mb-4 text-sm">
               <span className="text-text-secondary">Выбрано</span>
-              <span className="font-medium text-text">
-                {startTime}–{endTime} · {durationHours} ч
+              <span className="font-medium text-text text-right">
+                {ranges.map((r) => `${r.start}–${r.end}`).join(', ')}
+                {totalMin ? ` · ${fmtDuration(totalMin)}` : ''}
               </span>
             </div>
           )}

@@ -27,17 +27,19 @@ export default function Payment() {
     )
   }
 
-  const { cabinet, date, startTime, endTime, response } = pending
-  const amount = response.booking.totalAmount ?? 0
+  const { cabinet, date, slots } = pending
+  const amount = slots.reduce((sum, s) => sum + (s.response.booking.totalAmount ?? 0), 0)
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('ru', { day: '2-digit', month: 'long' })
+  // Each range was created as its own booking; pay them via the first link the API returned.
+  const paymentUrl = slots.map((s) => s.response.paymentUrl).find(Boolean)
 
   const handlePay = async () => {
     setLoading(true)
     // The API has already initiated payment and returned a payment link.
     // Hand the user off to the bank's payment page.
     await new Promise((r) => setTimeout(r, 800))
-    if (response.paymentUrl) {
-      window.location.href = response.paymentUrl
+    if (paymentUrl) {
+      window.location.href = paymentUrl
       return
     }
     setLoading(false)
@@ -76,10 +78,10 @@ export default function Payment() {
           <span className="text-sm text-text-secondary">Кабинет</span>
           <span className="text-sm font-medium text-text">«{cabinet.name}»</span>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <span className="text-sm text-text-secondary">Дата и время</span>
-          <span className="text-sm font-medium text-text">
-            {dateLabel}, {startTime}–{endTime}
+          <span className="text-sm font-medium text-text text-right">
+            {dateLabel}, {slots.map((s) => `${s.startTime}–${s.endTime}`).join(', ')}
           </span>
         </div>
       </Card>
