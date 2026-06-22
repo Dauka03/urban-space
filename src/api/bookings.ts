@@ -1,11 +1,17 @@
 import { apiClient, authHeaders, buildQuery } from './client'
 
-export interface CreateBookingPayload {
-  cabinetId: string
+/** A single time slot of a booking. */
+export interface BookingSlotInput {
   /** UTC start datetime in ISO 8601 format */
   startsAt: string
   /** UTC end datetime in ISO 8601 format */
   endsAt: string
+}
+
+export interface CreateBookingPayload {
+  cabinetId: string
+  /** One or more slots for the same cabinet — covered by a single payment/confirmation. */
+  slots: BookingSlotInput[]
 }
 
 export interface BookingRecord {
@@ -72,4 +78,11 @@ export const bookingsApi = {
   /** ADMIN: confirm a booking after payment. Throws ApiError(401/403/404/409). */
   confirm: (id: string) =>
     apiClient.post<BookingRecord>(`/api/bookings/${id}/confirm`, undefined, authHeaders()),
+
+  /**
+   * USER: reschedule a confirmed booking. The new slots must keep the same total
+   * daytime (07:00–20:30) and nighttime hours as the original. Throws ApiError(401/403/404/409).
+   */
+  reschedule: (id: string, slots: BookingSlotInput[]) =>
+    apiClient.patch<BookingRecord>(`/api/bookings/${id}/reschedule`, { slots }, authHeaders()),
 }

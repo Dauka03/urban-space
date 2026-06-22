@@ -12,20 +12,48 @@ interface Props {
   onChanged: () => void
 }
 
-export function CabinetPhotosModal({ open, cabinet, onClose, onChanged }: Props) {
-  const initial = cabinet.photos.slice().sort((a, b) => a.sortOrder - b.sortOrder)
+const MAX_PHOTOS = 5
+
+/** CRUD operations for one photo collection (cabinet photos OR appliance photos). */
+interface PhotoApi {
+  add: (id: string, files: File[]) => Promise<CabinetPhoto[]>
+  get: (id: string) => Promise<CabinetPhoto[]>
+  remove: (id: string, photoId: string) => Promise<void>
+  reorder: (id: string, photoIds: string[]) => Promise<CabinetPhoto[]>
+}
+
+function PhotoSection({
+  title,
+  cabinetId,
+  initial,
+  api,
+  onChanged,
+}: {
+  title: string
+  cabinetId: string
+  initial: CabinetPhoto[]
+  api: PhotoApi
+  onChanged: () => void
+}) {
   const [photos, setPhotos] = useState<CabinetPhoto[]>(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
+  const remaining = MAX_PHOTOS - photos.length
+
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
+    const picked = Array.from(files).slice(0, remaining)
+    if (picked.length === 0) {
+      setError(`Максимум ${MAX_PHOTOS} фото`)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      await cabinetsApi.addPhotos(cabinet.id, Array.from(files))
-      const fresh = await cabinetsApi.getPhotos(cabinet.id)
+      await api.add(cabinetId, picked)
+      const fresh = await api.get(cabinetId)
       setPhotos(fresh.slice().sort((a, b) => a.sortOrder - b.sortOrder))
       onChanged()
     } catch {
@@ -40,7 +68,7 @@ export function CabinetPhotosModal({ open, cabinet, onClose, onChanged }: Props)
     setBusy(true)
     setError(null)
     try {
-      await cabinetsApi.removePhoto(cabinet.id, photo.id)
+      await api.remove(cabinetId, photo.id)
       setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
       onChanged()
     } catch {
@@ -59,7 +87,7 @@ export function CabinetPhotosModal({ open, cabinet, onClose, onChanged }: Props)
     setBusy(true)
     setError(null)
     try {
-      await cabinetsApi.reorderPhotos(cabinet.id, next.map((p) => p.id))
+      await api.reorder(cabinetId, next.map((p) => p.id))
       onChanged()
     } catch {
       setError('Не удалось изменить порядок')
@@ -70,7 +98,14 @@ export function CabinetPhotosModal({ open, cabinet, onClose, onChanged }: Props)
   }
 
   return (
-    <Modal open={open} title={`Фото · ${cabinet.name}`} onClose={onClose}>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-text">{title}</p>
+        <span className="text-xs text-text-tertiary">
+          {photos.length}/{MAX_PHOTOS}
+        </span>
+      </div>
+
       <input
         ref={fileInput}
         type="file"
@@ -79,15 +114,21 @@ export function CabinetPhotosModal({ open, cabinet, onClose, onChanged }: Props)
         className="hidden"
         onChange={(e) => handleUpload(e.target.files)}
       />
-      <Button variant="outline" fullWidth disabled={busy} onClick={() => fileInput.current?.click()}>
-        <Upload size={16} className="mr-2" /> Загрузить фото
+      <Button
+        variant="outline"
+        fullWidth
+        size="sm"
+        disabled={busy || remaining <= 0}
+        onClick={() => fileInput.current?.click()}
+      >
+        <Upload size={16} className="mr-2" /> {remaining <= 0 ? 'Лимит достигнут' : 'Добавить'}
       </Button>
 
       {error && <p className="text-sm text-error">{error}</p>}
 
       <div className="grid grid-cols-3 gap-2">
         {photos.map((photo, i) => (
-          <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden bg-surface-2">
+          <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-surface-2">
             <img src={photo.urlCompressed || photo.urlMedium} alt="" className="w-full h-full object-cover" />
             <button
               onClick={() => handleDelete(photo)}
@@ -114,8 +155,47 @@ export function CabinetPhotosModal({ open, cabinet, onClose, onChanged }: Props)
             </div>
           </div>
         ))}
-        {photos.length === 0 && <p className="col-span-3 text-sm text-text-secondary py-4 text-center">Фото пока нет</p>}
+        {photos.length === 0 && (
+          <p className="col-span-3 text-sm text-text-secondary py-4 text-center">Фото пока нет</p>
+        )}
       </div>
+    </div>
+  )
+}
+
+const photosApi: PhotoApi = {
+  add: cabinetsApi.addPhotos,
+  get: cabinetsApi.getPhotos,
+  remove: cabinetsApi.removePhoto,
+  reorder: cabinetsApi.reorderPhotos,
+}
+const appliancesApi: PhotoApi = {
+  add: cabinetsApi.addAppliancePhotos,
+  get: cabinetsApi.getAppliancePhotos,
+  remove: cabinetsApi.removeAppliancePhoto,
+  reorder: cabinetsApi.reorderAppliancePhotos,
+}
+
+export function CabinetPhotosModal({ open, cabinet, onClose, onChanged }: Props) {
+  const sortByOrder = (arr: CabinetPhoto[]) => arr.slice().sort((a, b) => a.sortOrder - b.sortOrder)
+
+  return (
+    <Modal open={open} title={`Фото · ${cabinet.name}`} onClose={onClose}>
+      <PhotoSection
+        title="Фото кабинета"
+        cabinetId={cabinet.id}
+        initial={sortByOrder(cabinet.photos)}
+        api={photosApi}
+        onChanged={onChanged}
+      />
+      <div className="h-px bg-border" />
+      <PhotoSection
+        title="Доп оборудование"
+        cabinetId={cabinet.id}
+        initial={sortByOrder(cabinet.appliancePhotos ?? [])}
+        api={appliancesApi}
+        onChanged={onChanged}
+      />
     </Modal>
   )
 }

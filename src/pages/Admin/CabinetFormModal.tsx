@@ -96,10 +96,14 @@ export function CabinetFormModal({ open, cabinet, locations, categories, onClose
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-text-secondary">Описание</label>
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-text-secondary">Описание</label>
+          <span className="text-xs text-text-tertiary">{description.length}/120</span>
+        </div>
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => setDescription(e.target.value.slice(0, 120))}
+          maxLength={120}
           rows={3}
           className="px-4 py-3 rounded-xl border border-border bg-white text-base text-text outline-none focus:border-primary resize-none"
         />
@@ -127,10 +131,23 @@ export function CabinetFormModal({ open, cabinet, locations, categories, onClose
         </div>
       )}
 
-      <label className="flex items-center gap-2 text-sm text-text">
-        <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-        Активен
-      </label>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-text">Опубликовано</p>
+          <p className="text-xs text-text-secondary">Скрытые кабинеты не видны клиентам</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isActive}
+          onClick={() => setIsActive((v) => !v)}
+          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${isActive ? 'bg-primary' : 'bg-border-2'}`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${isActive ? 'translate-x-5' : ''}`}
+          />
+        </button>
+      </div>
 
       {error && <p className="text-sm text-error">{error}</p>}
     </Modal>

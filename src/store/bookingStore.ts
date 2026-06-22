@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import type { Cabinet } from '@/types'
-import type { BookingResponse } from '@/api/bookings'
+import type { BookingRecord } from '@/api/bookings'
 
-/** A single confirmed time range with its created booking. */
+/** A single confirmed time range within the booking. */
 export interface PendingSlot {
   /** HH:mm */
   startTime: string
@@ -12,15 +12,18 @@ export interface PendingSlot {
   startsAt: string
   /** ISO UTC */
   endsAt: string
-  response: BookingResponse
 }
 
 export interface PendingBooking {
   cabinet: Cabinet
   /** YYYY-MM-DD */
   date: string
-  /** One or more booked ranges — each is a separate booking request. */
+  /** One or more booked ranges — all part of a single booking. */
   slots: PendingSlot[]
+  /** The created booking (one request covers all slots). */
+  booking: BookingRecord
+  /** Payment link returned by the API. */
+  paymentUrl: string
 }
 
 interface BookingState {

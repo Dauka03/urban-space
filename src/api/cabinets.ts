@@ -59,4 +59,24 @@ export const cabinetsApi = {
    */
   reorderPhotos: (id: string, photoIds: string[]) =>
     apiClient.patch<CabinetPhoto[]>(`/api/cabinets/${id}/photos/reorder`, { photoIds }, authHeaders()),
+
+  // --- Appliance ("Доп оборудования") photos ---
+
+  getAppliancePhotos: (id: string) =>
+    apiClient.get<CabinetPhoto[]>(`/api/cabinets/${id}/appliance-photos`),
+
+  /** ADMIN: upload one or more appliance photos (multipart field `photos`). Throws ApiError(401/403). */
+  addAppliancePhotos: (id: string, files: File[]) => {
+    const form = new FormData()
+    files.forEach((file) => form.append('photos', file))
+    return apiClient.post<CabinetPhoto[]>(`/api/cabinets/${id}/appliance-photos`, form, authHeaders())
+  },
+
+  /** ADMIN: delete a single appliance photo. Throws ApiError(401/403). */
+  removeAppliancePhoto: (id: string, photoId: string) =>
+    apiClient.delete<void>(`/api/cabinets/${id}/appliance-photos/${photoId}`, authHeaders()),
+
+  /** ADMIN: reorder appliance photos. `photoIds` is the full list in the desired order. */
+  reorderAppliancePhotos: (id: string, photoIds: string[]) =>
+    apiClient.patch<CabinetPhoto[]>(`/api/cabinets/${id}/appliance-photos/reorder`, { photoIds }, authHeaders()),
 }

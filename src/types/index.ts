@@ -75,6 +75,8 @@ export interface Cabinet {
   updatedAt: string
   deletedAt: string | null
   photos: CabinetPhoto[]
+  // "Additional equipment" gallery shown on the detail screen (Figma: «Доп оборудования»).
+  appliancePhotos?: CabinetPhoto[]
   cabinetCategories: CabinetCategory[]
   bookings?: CabinetBooking[]
 }
@@ -119,12 +121,21 @@ export interface Subscription {
   price: number
 }
 
+export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN'
+
+/** Both ADMIN and SUPER_ADMIN can access the admin panel. */
+export const isStaff = (role: UserRole | undefined): boolean =>
+  role === 'ADMIN' || role === 'SUPER_ADMIN'
+
+/** SUPER_ADMIN has exclusive access to analytics, locations, categories and admin management. */
+export const isSuperAdmin = (role: UserRole | undefined): boolean => role === 'SUPER_ADMIN'
+
 export interface User {
   id: string
   phone: string
   name: string
   surname: string
-  role: 'USER' | 'ADMIN'
+  role: UserRole
   createdAt: string
   subscription?: Subscription
 }

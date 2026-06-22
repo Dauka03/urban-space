@@ -5,16 +5,10 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { useBookingStore } from '@/store/bookingStore'
 
-const BANKS = [
-  { id: 'halyk', name: 'Halyk Bank', emoji: '🟢' },
-  { id: 'kaspi', name: 'Kaspi Bank', emoji: '🔴' },
-]
-
 export default function Payment() {
   const navigate = useNavigate()
   const pending = useBookingStore((s) => s.pending)
   const reset = useBookingStore((s) => s.reset)
-  const [selectedBank, setSelectedBank] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [paid, setPaid] = useState(false)
 
@@ -27,11 +21,9 @@ export default function Payment() {
     )
   }
 
-  const { cabinet, date, slots } = pending
-  const amount = slots.reduce((sum, s) => sum + (s.response.booking.totalAmount ?? 0), 0)
+  const { cabinet, date, slots, booking, paymentUrl } = pending
+  const amount = booking.totalAmount ?? 0
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('ru', { day: '2-digit', month: 'long' })
-  // Each range was created as its own booking; pay them via the first link the API returned.
-  const paymentUrl = slots.map((s) => s.response.paymentUrl).find(Boolean)
 
   const handlePay = async () => {
     setLoading(true)
@@ -71,7 +63,7 @@ export default function Payment() {
         <span className="text-sm">Назад</span>
       </button>
 
-      <h1 className="text-xl font-bold text-text mb-1">Способ оплаты</h1>
+      <h1 className="text-xl font-bold text-text mb-1">Оплата</h1>
 
       <Card className="my-4">
         <div className="flex items-center justify-between mb-1">
@@ -86,37 +78,27 @@ export default function Payment() {
         </div>
       </Card>
 
-      <p className="text-2xl font-bold text-text mb-6">{amount.toLocaleString()} ₸</p>
+      <div className="flex items-baseline justify-between mb-6">
+        <span className="text-sm text-text-secondary">Сумма к оплате</span>
+        <span className="text-2xl font-bold text-text">{amount.toLocaleString('ru')} ₸</span>
+      </div>
 
-      <Card padding={false} className="overflow-hidden mb-4">
-        {BANKS.map((bank, i) => (
-          <button
-            key={bank.id}
-            onClick={() => setSelectedBank(bank.id)}
-            className={`w-full flex items-center justify-between px-4 py-4 transition-colors hover:bg-surface
-              ${i > 0 ? 'border-t border-border' : ''}
-              ${selectedBank === bank.id ? 'bg-primary-light' : ''}`}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-xl">{bank.emoji}</span>
-              <span className="font-medium text-text">{bank.name}</span>
-            </div>
-            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center
-              ${selectedBank === bank.id ? 'border-primary' : 'border-border'}`}>
-              {selectedBank === bank.id && (
-                <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-              )}
-            </div>
-          </button>
-        ))}
+      <Card className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-[#FF4B3A] flex items-center justify-center text-white font-bold shrink-0">
+          K
+        </div>
+        <div className="min-w-0">
+          <p className="font-medium text-text">Kaspi</p>
+          <p className="text-xs text-text-secondary">Оплата по QR в приложении Kaspi.kz</p>
+        </div>
       </Card>
 
-      <Button fullWidth disabled={!selectedBank || loading} onClick={handlePay}>
-        {loading ? 'Обработка...' : 'Перейти к оплате'}
+      <Button fullWidth disabled={loading} onClick={handlePay}>
+        {loading ? 'Переходим к оплате...' : 'Оплатить через Kaspi'}
       </Button>
 
       <p className="text-xs text-text-secondary text-center mt-3">
-        Платёж защищён. После оплаты вы получите подтверждение бронирования.
+        Вы перейдёте на страницу Kaspi с QR-кодом. После оплаты менеджер подтвердит бронь.
       </p>
     </div>
   )

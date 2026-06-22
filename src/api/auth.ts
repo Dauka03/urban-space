@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { UserRole } from '@/types'
 
 export interface OtpSentResponse {
   message: string
@@ -10,7 +11,7 @@ export interface AuthUser {
   phone: string
   name: string
   surname: string
-  role: 'USER' | 'ADMIN'
+  role: UserRole
   createdAt: string
 }
 

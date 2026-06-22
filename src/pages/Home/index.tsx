@@ -1,39 +1,61 @@
 import { useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Search, ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { CabinetCard } from './CabinetCard'
+import { ManagerBookings } from './ManagerBookings'
 import { locationsApi } from '@/api/locations'
 import { cabinetsApi } from '@/api/cabinets'
 import { categoriesApi } from '@/api/categories'
+import { useAuthStore } from '@/store/authStore'
+import { useBookingStore } from '@/store/bookingStore'
+import { isStaff } from '@/types'
 import type { Location, Cabinet, Category } from '@/types'
 
-const ALL_LOCATIONS_ID = '__all__'
 const ALL_CATEGORIES_ID = '__all__'
 
 export default function Home() {
-  const [activeCategoryId, setActiveCategoryId] = useState(ALL_CATEGORIES_ID)
   const [search, setSearch] = useState('')
-  const [activeLocationId, setActiveLocationId] = useState(ALL_LOCATIONS_ID)
+  const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
+  const [activeCategoryId, setActiveCategoryId] = useState(ALL_CATEGORIES_ID)
 
   const [locations, setLocations] = useState<Location[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [cabinets, setCabinets] = useState<Cabinet[]>([])
   const [loadingCabinets, setLoadingCabinets] = useState(true)
 
+  const user = useAuthStore((s) => s.user)
+  const isManager = isStaff(user?.role)
+  const pending = useBookingStore((s) => s.pending)
+
+  // Load locations once, then preselect the first address (segment control has no "all" option).
   useEffect(() => {
-    locationsApi.getAll().then(setLocations).catch(() => {})
+    locationsApi
+      .getAll()
+      .then((locs) => {
+        const active = locs.filter((l) => l.isActive).sort((a, b) => a.sortOrder - b.sortOrder)
+        setLocations(active)
+        setActiveLocationId((prev) => prev ?? active[0]?.id ?? null)
+      })
+      .catch(() => {})
     categoriesApi.getAll().then(setCategories).catch(() => {})
   }, [])
 
+  // Reload cabinets whenever the selected address changes (loading is toggled by the caller).
   useEffect(() => {
-    setLoadingCabinets(true)
-    const locationId = activeLocationId === ALL_LOCATIONS_ID ? undefined : activeLocationId
+    if (!activeLocationId) return
     cabinetsApi
-      .getAll(locationId)
+      .getAll(activeLocationId)
       .then(setCabinets)
       .catch(() => setCabinets([]))
       .finally(() => setLoadingCabinets(false))
   }, [activeLocationId])
+
+  const selectLocation = (id: string) => {
+    if (id === activeLocationId) return
+    setLoadingCabinets(true)
+    setActiveLocationId(id)
+  }
 
   const filtered = cabinets.filter((c) => {
     const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase())
@@ -43,8 +65,12 @@ export default function Home() {
     return matchesSearch && matchesCategory
   })
 
+  const bookingDate = pending
+    ? new Date(`${pending.date}T00:00:00`).toLocaleDateString('ru', { day: '2-digit', month: 'long' })
+    : ''
+
   return (
-    <div className="max-w-screen-xl mx-auto px-4 py-6">
+    <div className="max-w-screen-sm mx-auto px-4 py-5">
       <h1 className="text-2xl font-bold text-text mb-4">Найдите рабочее место</h1>
 
       <div className="mb-4">
@@ -56,27 +82,35 @@ export default function Home() {
         />
       </div>
 
+      {/* Manager: bookings awaiting confirmation, right on the home screen */}
+      {isManager && <ManagerBookings />}
+
+      {/* My booking (from the current session — needs a user bookings endpoint to persist) */}
+      {!isManager && pending && (
+        <Link
+          to="/payment"
+          className="flex items-center gap-3 rounded-2xl border border-border bg-white p-4 mb-4 hover:bg-surface-2 transition-colors"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-text-secondary mb-0.5">Моя бронь</p>
+            <p className="text-sm font-semibold text-text truncate">«{pending.cabinet.name}»</p>
+            <p className="text-xs text-text-secondary mt-0.5 truncate">
+              {bookingDate}, {pending.slots.map((s) => `${s.startTime}–${s.endTime}`).join(', ')}
+            </p>
+          </div>
+          <ChevronRight size={20} className="shrink-0 text-text-secondary" />
+        </Link>
+      )}
+
+      {/* Address switcher (segment control) */}
       {locations.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none">
-          <button
-            onClick={() => setActiveLocationId(ALL_LOCATIONS_ID)}
-            className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-              ${activeLocationId === ALL_LOCATIONS_ID
-                ? 'bg-primary text-white'
-                : 'bg-surface-2 text-text-secondary hover:bg-border'
-              }`}
-          >
-            Все локации
-          </button>
+        <div className="flex gap-1 p-1 rounded-xl bg-surface-2 mb-3">
           {locations.map((loc) => (
             <button
               key={loc.id}
-              onClick={() => setActiveLocationId(loc.id)}
-              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-                ${activeLocationId === loc.id
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-2 text-text-secondary hover:bg-border'
-                }`}
+              onClick={() => selectLocation(loc.id)}
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium truncate transition-colors
+                ${activeLocationId === loc.id ? 'bg-white text-primary shadow-sm' : 'text-text-secondary'}`}
             >
               {loc.name}
             </button>
@@ -84,15 +118,13 @@ export default function Home() {
         </div>
       )}
 
+      {/* Category chips */}
       {categories.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-none">
           <button
             onClick={() => setActiveCategoryId(ALL_CATEGORIES_ID)}
             className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-              ${activeCategoryId === ALL_CATEGORIES_ID
-                ? 'bg-primary text-white'
-                : 'bg-surface-2 text-text-secondary hover:bg-border'
-              }`}
+              ${activeCategoryId === ALL_CATEGORIES_ID ? 'bg-primary text-white' : 'bg-surface-2 text-text-secondary hover:bg-border'}`}
           >
             Все
           </button>
@@ -101,10 +133,7 @@ export default function Home() {
               key={cat.id}
               onClick={() => setActiveCategoryId(cat.id)}
               className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-                ${activeCategoryId === cat.id
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-2 text-text-secondary hover:bg-border'
-                }`}
+                ${activeCategoryId === cat.id ? 'bg-primary text-white' : 'bg-surface-2 text-text-secondary hover:bg-border'}`}
             >
               {cat.name}
             </button>
@@ -112,26 +141,27 @@ export default function Home() {
         </div>
       )}
 
+      {/* Cabinet list */}
       {loadingCabinets ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="aspect-square rounded-2xl bg-surface-2 mb-2" />
-              <div className="h-3.5 bg-surface-2 rounded w-3/4 mb-1.5" />
-              <div className="h-3 bg-surface-2 rounded w-full mb-1" />
-              <div className="h-3 bg-surface-2 rounded w-2/3" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="animate-pulse rounded-2xl border border-border overflow-hidden">
+              <div className="aspect-video bg-surface-2" />
+              <div className="p-3">
+                <div className="h-3.5 bg-surface-2 rounded w-2/3 mb-2" />
+                <div className="h-3 bg-surface-2 rounded w-full mb-1" />
+                <div className="h-3 bg-surface-2 rounded w-1/2" />
+              </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {filtered.map((cabinet) => (
             <CabinetCard key={cabinet.id} cabinet={cabinet} />
           ))}
           {filtered.length === 0 && (
-            <p className="col-span-full text-center text-text-secondary text-sm py-12">
-              Кабинеты не найдены
-            </p>
+            <p className="col-span-full text-center text-text-secondary text-sm py-12">Кабинеты не найдены</p>
           )}
         </div>
       )}

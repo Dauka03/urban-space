@@ -1,10 +1,14 @@
 import { apiClient, authHeaders, buildQuery } from './client'
 import type { DashboardAnalytics } from '@/types'
 
+/** Aggregation window. `custom` requires `from`/`to` (ISO dates). */
+export type DashboardPeriod = 'day' | 'month' | 'year' | 'custom'
+
 export type DashboardParams = {
-  /** e.g. 'day' | 'week' | 'month' — period to aggregate over */
-  period?: string
+  period?: DashboardPeriod
+  /** ISO date, used with period=custom */
   from?: string
+  /** ISO date, used with period=custom */
   to?: string
   cabinetId?: string
 }
