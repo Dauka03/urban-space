@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cabinetsApi } from '@/api/cabinets'
@@ -115,6 +115,7 @@ const FAQ: FaqItem[] = [
 export default function SpaceDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const setPending = useBookingStore((s) => s.setPending)
 
@@ -264,7 +265,7 @@ export default function SpaceDetail() {
   const handleSubmit = async () => {
     if (!selectedDate || ranges.length === 0) return
     if (!isAuthenticated) {
-      navigate('/auth')
+      navigate('/auth', { state: { returnTo: location.pathname } })
       return
     }
 
@@ -293,7 +294,7 @@ export default function SpaceDetail() {
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.status === 401) {
-          navigate('/auth')
+          navigate('/auth', { state: { returnTo: location.pathname } })
           return
         }
         if (e.status === 409) setSubmitError('Одно из выбранных времён уже занято — измените выбор')
