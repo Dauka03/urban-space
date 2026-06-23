@@ -46,22 +46,19 @@ export function ClientBookings() {
     <div className="mb-4 flex flex-col gap-3">
       {bookings.map((b) => {
         const tariff = tariffOf(b)
-        // Reschedule is allowed only for confirmed bookings; pass the id so the cabinet page knows.
-        const to =
-          b.status === 'CONFIRMED' ? `/spaces/${b.cabinet.id}?rescheduleId=${b.id}` : `/spaces/${b.cabinet.id}`
-        return (
-          <Link
-            key={b.id}
-            to={to}
-            className="block rounded-2xl border border-border bg-white p-4 hover:bg-surface-2 transition-colors"
-          >
+        // Only confirmed bookings are interactive — clicking opens the reschedule flow.
+        // Pending bookings are still awaiting confirmation, so there's nowhere useful to go.
+        const isConfirmed = b.status === 'CONFIRMED'
+
+        const inner = (
+          <>
             <div className="flex items-center justify-between mb-2">
               <p className="font-semibold text-text">Моя бронь</p>
               <div className="flex items-center gap-2">
-                {b.status !== 'CONFIRMED' && (
+                {!isConfirmed && (
                   <Badge variant={bookingStatusVariant(b.status)}>{bookingStatusLabel(b.status)}</Badge>
                 )}
-                <ChevronRight size={18} className="text-text-secondary" />
+                {isConfirmed && <ChevronRight size={18} className="text-text-secondary" />}
               </div>
             </div>
 
@@ -83,7 +80,22 @@ export function ClientBookings() {
                 Время <span className="text-text">{formatTime(b.startsAt)}</span>
               </span>
             </div>
+          </>
+        )
+
+        return isConfirmed ? (
+          <Link
+            key={b.id}
+            to={`/spaces/${b.cabinet.id}?rescheduleId=${b.id}`}
+            className="block rounded-2xl border border-border bg-white p-4 hover:bg-surface-2 transition-colors"
+          >
+            {inner}
           </Link>
+        ) : (
+          // Pending bookings get a warm "awaiting" tint so they read as inactive vs. the white confirmed cards.
+          <div key={b.id} className="block rounded-2xl border border-warning/40 bg-warning/5 p-4">
+            {inner}
+          </div>
         )
       })}
     </div>

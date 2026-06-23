@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams, useLocation } from 'react-rout
 import { ChevronLeft, ChevronRight, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cabinetsApi } from '@/api/cabinets'
-import { bookingsApi } from '@/api/bookings'
+import { bookingsApi, type AdminBooking } from '@/api/bookings'
 import { ApiError } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { useBookingStore } from '@/store/bookingStore'
@@ -38,6 +38,9 @@ const mondayOf = (d: Date) => {
   return x
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+// "ДД.ММ" for a YYYY-MM-DD date key.
+const shortDate = (key: string) =>
+  new Date(`${key}T00:00:00`).toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })
 
 // Static FAQ content provided by the product team.
 type FaqItem = { q: string; intro?: string; bullets?: string[] }
@@ -136,6 +139,8 @@ export default function SpaceDetail() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // The booking being rescheduled — used to default the calendar to its date and highlight its slots.
+  const [rescheduleBooking, setRescheduleBooking] = useState<AdminBooking | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -145,6 +150,23 @@ export default function SpaceDetail() {
       .catch(() => setError('Не удалось загрузить кабинет'))
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (!rescheduleId) return
+    bookingsApi
+      .getById(rescheduleId)
+      .then((b) => {
+        setRescheduleBooking(b)
+        // Open the calendar on the date/tariff/week the client originally booked.
+        const start = new Date(b.startsAt)
+        setSelectedDate(dateKey(start))
+        setWeekStart(mondayOf(start))
+        const night = (b.slots ?? []).reduce((s, x) => s + x.nightHours, 0)
+        const day = (b.slots ?? []).reduce((s, x) => s + x.dayHours, 0)
+        if (night > 0 && day === 0) setTariff('night')
+      })
+      .catch(() => setRescheduleBooking(null))
+  }, [rescheduleId])
 
   if (loading) return <div className="p-8 text-center text-text-secondary">Загрузка...</div>
   if (error || !cabinet) return <div className="p-8 text-center text-text-secondary">{error ?? 'Кабинет не найден'}</div>
@@ -216,6 +238,29 @@ export default function SpaceDetail() {
   const selectedSlots = (() => {
     const set = new Set<number>()
     for (const r of ranges) for (let m = r.start; m < r.end; m += 30) set.add(m)
+    return set
+  })()
+
+  // 30-min slots (as absolute minutes) belonging to the booking being rescheduled — highlighted
+  // on its original date so the client can see what they currently have.
+  const originalSlots = (() => {
+    const set = new Set<number>()
+    if (!selectedDate || !rescheduleBooking) return set
+    const nextDayKey = dateKey(slotDate(1440))
+    const parts = rescheduleBooking.slots?.length
+      ? rescheduleBooking.slots
+      : [{ startsAt: rescheduleBooking.startsAt, endsAt: rescheduleBooking.endsAt }]
+    for (const s of parts) {
+      const end = new Date(s.endsAt)
+      const t = new Date(s.startsAt)
+      t.setMinutes(t.getMinutes() < 30 ? 0 : 30, 0, 0)
+      for (; t < end; t.setMinutes(t.getMinutes() + 30)) {
+        const mins = t.getHours() * 60 + t.getMinutes()
+        const key = dateKey(t)
+        if (key === selectedDate) set.add(mins)
+        else if (key === nextDayKey) set.add(mins + 1440)
+      }
+    }
     return set
   })()
 
@@ -488,6 +533,13 @@ export default function SpaceDetail() {
                   : 'Выберите время начала'}
             </p>
 
+            {isReschedule && originalSlots.size > 0 && (
+              <p className="flex items-center gap-1.5 text-xs text-text-secondary mb-3">
+                <span className="inline-block w-3 h-3 rounded bg-warning/15 border border-warning" />
+                Ваша текущая бронь
+              </p>
+            )}
+
             {ranges.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {ranges.map((r) => (
@@ -495,6 +547,7 @@ export default function SpaceDetail() {
                     key={r.start}
                     className="inline-flex items-center gap-1 text-xs font-medium bg-primary-light text-primary pl-2.5 pr-1.5 py-1 rounded-full"
                   >
+                    {selectedDate && <span className="opacity-70">{shortDate(selectedDate)}</span>}
                     {labelOf(r.start)}–{labelOf(r.end)}
                     <button
                       type="button"
@@ -513,6 +566,8 @@ export default function SpaceDetail() {
               {slots.map((abs) => {
                 const edge = abs === pendingStart || ranges.some((r) => r.start === abs || r.end === abs)
                 const inRange = ranges.some((r) => abs > r.start && abs < r.end)
+                // The slot belongs to the booking being rescheduled — mark it so the client sees their current time.
+                const isOriginal = originalSlots.has(abs)
                 const unavailable = bookedSlots.has(abs) || isPast(abs)
                 const disabled = slotDisabled(abs)
                 return (
@@ -527,11 +582,13 @@ export default function SpaceDetail() {
                           ? 'bg-primary text-white border-primary'
                           : inRange
                             ? 'bg-primary-light text-primary border-primary-light'
-                            : unavailable
-                              ? 'bg-surface-2 text-text-tertiary line-through border-transparent cursor-not-allowed'
-                              : disabled
-                                ? 'bg-surface-2 text-text-tertiary border-transparent cursor-not-allowed'
-                                : 'bg-white text-primary border-primary/30 hover:bg-primary-light'
+                            : isOriginal
+                              ? 'bg-warning/15 text-warning border-warning font-semibold cursor-not-allowed'
+                              : unavailable
+                                ? 'bg-surface-2 text-text-tertiary line-through border-transparent cursor-not-allowed'
+                                : disabled
+                                  ? 'bg-surface-2 text-text-tertiary border-transparent cursor-not-allowed'
+                                  : 'bg-white text-primary border-primary/30 hover:bg-primary-light'
                       }`}
                   >
                     {labelOf(abs)}
