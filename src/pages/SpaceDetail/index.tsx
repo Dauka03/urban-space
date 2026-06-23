@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cabinetsApi } from '@/api/cabinets'
@@ -116,6 +116,7 @@ export default function SpaceDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   // When opened from "Моя бронь", carries the booking id to reschedule instead of creating a new one.
   const rescheduleId = searchParams.get('rescheduleId')
   const isReschedule = !!rescheduleId
@@ -268,7 +269,7 @@ export default function SpaceDetail() {
   const handleSubmit = async () => {
     if (!selectedDate || ranges.length === 0) return
     if (!isAuthenticated) {
-      navigate('/auth')
+      navigate('/auth', { state: { returnTo: location.pathname } })
       return
     }
 
@@ -301,7 +302,7 @@ export default function SpaceDetail() {
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.status === 401) {
-          navigate('/auth')
+          navigate('/auth', { state: { returnTo: location.pathname } })
           return
         }
         if (isReschedule && e.status === 422)

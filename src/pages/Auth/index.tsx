@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuthStore } from '@/store/authStore'
@@ -18,6 +18,8 @@ export default function Auth() {
 
   const { setPhone: savePhone, setMode } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo
 
   const fullPhone = `+7${phone}`
 
@@ -30,7 +32,7 @@ export default function Auth() {
       await authApi.requestOtp(fullPhone)
       savePhone(fullPhone)
       setMode('login')
-      navigate('/auth/otp')
+      navigate('/auth/otp', { state: { returnTo } })
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         // No account found — switch to registration
@@ -52,7 +54,7 @@ export default function Auth() {
       await authApi.register(fullPhone, name.trim(), surname.trim())
       savePhone(fullPhone)
       setMode('register')
-      navigate('/auth/otp')
+      navigate('/auth/otp', { state: { returnTo } })
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError('Этот номер уже зарегистрирован. Войдите в аккаунт.')

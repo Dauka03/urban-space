@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/store/authStore'
@@ -18,6 +18,8 @@ export default function Otp() {
 
   const { phone, mode, setAuth } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo
 
   const handleChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return
@@ -50,7 +52,7 @@ export default function Otp() {
       }
 
       setAuth(res.accessToken, user)
-      navigate('/')
+      navigate(returnTo ?? '/')
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError('Неверный или истёкший код. Попробуйте ещё раз.')
