@@ -140,6 +140,15 @@ export interface User {
   subscription?: Subscription
 }
 
+export interface Admin {
+  id: string
+  phone: string
+  name: string
+  surname: string
+  role: UserRole
+  createdAt: string
+}
+
 export interface AdminStats {
   revenue: number
   clients: number

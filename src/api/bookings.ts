@@ -36,10 +36,32 @@ export interface BookingResponse {
   paymentUrl: string
 }
 
-/** Booking enriched with user and cabinet info, as returned by the ADMIN endpoints. */
+/** A persisted slot of a booking, with the day/night hour breakdown computed by the API. */
+export interface BookingSlotRecord {
+  id: string
+  bookingId: string
+  startsAt: string
+  endsAt: string
+  /** Total price for this slot (day + night). */
+  amount: number
+  /** Hours within the daytime window (07:00–20:30 Almaty). */
+  dayHours: number
+  /** Hours within the nighttime window. */
+  nightHours: number
+  createdAt: string
+}
+
+/** Booking enriched with user, cabinet and slots, as returned by the list/detail endpoints. */
 export interface AdminBooking extends BookingRecord {
-  user: { id: string; name: string; surname: string; phone: string }
-  cabinet: { id: string; name: string; location: { id: string; name: string } }
+  user: { id: string; name: string | null; surname: string | null; phone: string }
+  cabinet: {
+    id: string
+    name: string
+    priceDay?: number
+    priceNight?: number
+    location: { id: string; name: string }
+  }
+  slots?: BookingSlotRecord[]
 }
 
 export interface BookingListResponse {
@@ -68,11 +90,15 @@ export const bookingsApi = {
   create: (payload: CreateBookingPayload) =>
     apiClient.post<BookingResponse>('/api/bookings', payload, authHeaders()),
 
-  /** ADMIN: paginated list of bookings for the dashboard. Throws ApiError(401/403). */
+  /**
+   * Paginated list of bookings. USER sees only their own bookings (userId is ignored);
+   * ADMIN/SUPER_ADMIN see all and may filter by userId/cabinetId. Defaults to today.
+   * Throws ApiError(401/403).
+   */
   list: (params: BookingListParams = {}) =>
     apiClient.get<BookingListResponse>(`/api/bookings${buildQuery(params)}`, authHeaders()),
 
-  /** ADMIN: booking details by id. Throws ApiError(401/403/404). */
+  /** Booking details by id. USER may view only their own; ADMIN any. Throws ApiError(401/403/404). */
   getById: (id: string) => apiClient.get<AdminBooking>(`/api/bookings/${id}`, authHeaders()),
 
   /** ADMIN: confirm a booking after payment. Throws ApiError(401/403/404/409). */
@@ -80,8 +106,9 @@ export const bookingsApi = {
     apiClient.post<BookingRecord>(`/api/bookings/${id}/confirm`, undefined, authHeaders()),
 
   /**
-   * USER: reschedule a confirmed booking. The new slots must keep the same total
-   * daytime (07:00–20:30) and nighttime hours as the original. Throws ApiError(401/403/404/409).
+   * USER: reschedule own CONFIRMED booking. The new slots must keep the same total
+   * daytime (07:00–20:30) and nighttime hours as the original (else 422); new slots must
+   * not overlap existing reservations (else 409). Throws ApiError(401/403/404/409/422).
    */
   reschedule: (id: string, slots: BookingSlotInput[]) =>
     apiClient.patch<BookingRecord>(`/api/bookings/${id}/reschedule`, { slots }, authHeaders()),

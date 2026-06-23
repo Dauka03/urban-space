@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { bookingsApi, type AdminBooking } from '@/api/bookings'
 import { ApiError } from '@/api/client'
+import { isConfirmable } from '@/lib/bookingStatus'
 
 const paymentVariant = (status: string): 'success' | 'warning' | 'error' | 'default' => {
   const s = status.toLowerCase()
@@ -55,7 +56,7 @@ export function ManagerBookings() {
     }
   }
 
-  const pending = bookings.filter((b) => !b.confirmedAt)
+  const pending = bookings.filter((b) => isConfirmable(b.status))
 
   if (loading) return null
   if (error) return null

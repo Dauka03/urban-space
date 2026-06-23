@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Search, ChevronRight } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { CabinetCard } from './CabinetCard'
 import { ManagerBookings } from './ManagerBookings'
+import { ClientBookings } from './ClientBookings'
 import { locationsApi } from '@/api/locations'
 import { cabinetsApi } from '@/api/cabinets'
 import { categoriesApi } from '@/api/categories'
 import { useAuthStore } from '@/store/authStore'
-import { useBookingStore } from '@/store/bookingStore'
 import { isStaff } from '@/types'
 import type { Location, Cabinet, Category } from '@/types'
 
@@ -26,7 +25,6 @@ export default function Home() {
 
   const user = useAuthStore((s) => s.user)
   const isManager = isStaff(user?.role)
-  const pending = useBookingStore((s) => s.pending)
 
   // Load locations once, then preselect the first address (segment control has no "all" option).
   useEffect(() => {
@@ -65,10 +63,6 @@ export default function Home() {
     return matchesSearch && matchesCategory
   })
 
-  const bookingDate = pending
-    ? new Date(`${pending.date}T00:00:00`).toLocaleDateString('ru', { day: '2-digit', month: 'long' })
-    : ''
-
   return (
     <div className="max-w-screen-sm mx-auto px-4 py-5">
       <h1 className="text-2xl font-bold text-text mb-4">Найдите рабочее место</h1>
@@ -85,22 +79,8 @@ export default function Home() {
       {/* Manager: bookings awaiting confirmation, right on the home screen */}
       {isManager && <ManagerBookings />}
 
-      {/* My booking (from the current session — needs a user bookings endpoint to persist) */}
-      {!isManager && pending && (
-        <Link
-          to="/payment"
-          className="flex items-center gap-3 rounded-2xl border border-border bg-white p-4 mb-4 hover:bg-surface-2 transition-colors"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-text-secondary mb-0.5">Моя бронь</p>
-            <p className="text-sm font-semibold text-text truncate">«{pending.cabinet.name}»</p>
-            <p className="text-xs text-text-secondary mt-0.5 truncate">
-              {bookingDate}, {pending.slots.map((s) => `${s.startTime}–${s.endTime}`).join(', ')}
-            </p>
-          </div>
-          <ChevronRight size={20} className="shrink-0 text-text-secondary" />
-        </Link>
-      )}
+      {/* Client: their own bookings from the API, tap to open the cabinet (and reschedule). */}
+      {!isManager && <ClientBookings />}
 
       {/* Address switcher (segment control) */}
       {locations.length > 0 && (

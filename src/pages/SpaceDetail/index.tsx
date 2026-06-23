@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cabinetsApi } from '@/api/cabinets'
@@ -115,6 +115,10 @@ const FAQ: FaqItem[] = [
 export default function SpaceDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // When opened from "Моя бронь", carries the booking id to reschedule instead of creating a new one.
+  const rescheduleId = searchParams.get('rescheduleId')
+  const isReschedule = !!rescheduleId
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const setPending = useBookingStore((s) => s.setPending)
 
@@ -270,18 +274,22 @@ export default function SpaceDetail() {
 
     setSubmitting(true)
     setSubmitError(null)
+    // One request carries all selected ranges as slots; a single payment covers them.
+    const bookedRanges = ranges.map((r) => ({
+      startTime: labelOf(r.start),
+      endTime: labelOf(r.end),
+      startsAt: slotDate(r.start).toISOString(),
+      endsAt: slotDate(r.end).toISOString(),
+    }))
+    const slotPayload = bookedRanges.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt }))
     try {
-      // One request carries all selected ranges as slots; a single payment covers them.
-      const bookedRanges = ranges.map((r) => ({
-        startTime: labelOf(r.start),
-        endTime: labelOf(r.end),
-        startsAt: slotDate(r.start).toISOString(),
-        endsAt: slotDate(r.end).toISOString(),
-      }))
-      const response = await bookingsApi.create({
-        cabinetId: cabinet.id,
-        slots: bookedRanges.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt })),
-      })
+      if (isReschedule) {
+        // Reschedule keeps the same total day/night hours — the API enforces it (422 otherwise).
+        await bookingsApi.reschedule(rescheduleId, slotPayload)
+        navigate('/')
+        return
+      }
+      const response = await bookingsApi.create({ cabinetId: cabinet.id, slots: slotPayload })
       setPending({
         cabinet,
         date: selectedDate,
@@ -296,12 +304,20 @@ export default function SpaceDetail() {
           navigate('/auth')
           return
         }
-        if (e.status === 409) setSubmitError('Одно из выбранных времён уже занято — измените выбор')
-        else if (e.status === 403) setSubmitError('Бронирование доступно только для пользователей')
-        else if (e.status === 404) setSubmitError('Кабинет недоступен для бронирования')
-        else setSubmitError('Не удалось создать бронирование. Попробуйте ещё раз')
+        if (isReschedule && e.status === 422)
+          setSubmitError('Сохраните тот же суммарный объём дневных и ночных часов, что и в брони')
+        else if (e.status === 409)
+          setSubmitError(
+            isReschedule
+              ? 'Выбранное время пересекается с другой бронью — измените выбор'
+              : 'Одно из выбранных времён уже занято — измените выбор',
+          )
+        else if (e.status === 403) setSubmitError('Действие доступно только для пользователей')
+        else if (e.status === 404)
+          setSubmitError(isReschedule ? 'Бронь не найдена' : 'Кабинет недоступен для бронирования')
+        else setSubmitError(isReschedule ? 'Не удалось перенести бронь. Попробуйте ещё раз' : 'Не удалось создать бронирование. Попробуйте ещё раз')
       } else {
-        setSubmitError('Не удалось создать бронирование. Попробуйте ещё раз')
+        setSubmitError(isReschedule ? 'Не удалось перенести бронь. Попробуйте ещё раз' : 'Не удалось создать бронирование. Попробуйте ещё раз')
       }
     } finally {
       setSubmitting(false)
@@ -320,7 +336,9 @@ export default function SpaceDetail() {
           >
             <ChevronLeft size={22} />
           </button>
-          <h1 className="text-lg font-semibold text-text truncate">{cabinet.name}</h1>
+          <h1 className="text-lg font-semibold text-text truncate">
+            {isReschedule ? 'Перенос брони' : cabinet.name}
+          </h1>
         </div>
       </div>
 
@@ -587,9 +605,20 @@ export default function SpaceDetail() {
               <span className="font-semibold text-text">{totalCost.toLocaleString('ru')} ₸</span>
             </div>
           )}
+          {isReschedule && (
+            <p className="text-xs text-text-secondary mb-2 text-center">
+              Выберите новые дату и время — сохраните тот же суммарный объём дневных и ночных часов
+            </p>
+          )}
           {submitError && <p className="text-sm text-error mb-2 text-center">{submitError}</p>}
           <Button fullWidth disabled={!canSubmit} onClick={handleSubmit}>
-            {submitting ? 'Создаём бронь...' : 'Забронировать'}
+            {submitting
+              ? isReschedule
+                ? 'Переносим...'
+                : 'Создаём бронь...'
+              : isReschedule
+                ? 'Перенести'
+                : 'Забронировать'}
           </Button>
           {!isAuthenticated && (
             <p className="text-xs text-text-secondary text-center mt-2">Для бронирования нужно войти в аккаунт</p>

@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { bookingsApi, type AdminBooking } from '@/api/bookings'
 import { ApiError } from '@/api/client'
+import { bookingStatusLabel, bookingStatusVariant, isConfirmable } from '@/lib/bookingStatus'
 
 const FILTERS = [
-  { key: 'unconfirmed', label: 'Не подтверждённые' },
+  { key: 'pending', label: 'Ожидают подтверждения' },
   { key: 'all', label: 'Все' },
 ] as const
 
@@ -21,19 +22,11 @@ const paymentVariant = (status: string): 'success' | 'warning' | 'error' | 'defa
   return 'default'
 }
 
-const statusVariant = (status: string): 'success' | 'warning' | 'error' | 'default' => {
-  const s = status.toLowerCase()
-  if (s.includes('confirm')) return 'success'
-  if (s.includes('cancel') || s.includes('expire')) return 'error'
-  if (s.includes('pending')) return 'warning'
-  return 'default'
-}
-
 const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString('ru', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 export function BookingsTab() {
-  const [filter, setFilter] = useState<FilterKey>('unconfirmed')
+  const [filter, setFilter] = useState<FilterKey>('pending')
   const [bookings, setBookings] = useState<AdminBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -69,7 +62,7 @@ export function BookingsTab() {
     }
   }
 
-  const visible = filter === 'unconfirmed' ? bookings.filter((b) => !b.confirmedAt) : bookings
+  const visible = filter === 'pending' ? bookings.filter((b) => isConfirmable(b.status)) : bookings
 
   if (loading) return <p className="text-sm text-text-secondary">Загрузка...</p>
   if (error) return <p className="text-sm text-text-secondary">{error}</p>
@@ -108,7 +101,7 @@ export function BookingsTab() {
                   {formatDateTime(b.startsAt)} — {new Date(b.endsAt).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <Badge variant={statusVariant(b.status)}>{b.status}</Badge>
+                  <Badge variant={bookingStatusVariant(b.status)}>{bookingStatusLabel(b.status)}</Badge>
                   <Badge variant={paymentVariant(b.paymentStatus)}>оплата: {b.paymentStatus}</Badge>
                   {b.totalAmount != null && (
                     <span className="text-sm font-semibold text-text">{Number(b.totalAmount).toLocaleString()} ₸</span>
@@ -117,15 +110,15 @@ export function BookingsTab() {
               </div>
 
               <div className="shrink-0">
-                {b.confirmedAt ? (
-                  <Badge variant="success">
-                    <Check size={12} className="mr-1" /> Подтверждена
-                  </Badge>
-                ) : (
+                {isConfirmable(b.status) ? (
                   <Button size="sm" disabled={confirmingId === b.id} onClick={() => handleConfirm(b)}>
                     {confirmingId === b.id ? '...' : 'Подтвердить'}
                   </Button>
-                )}
+                ) : b.status === 'CONFIRMED' ? (
+                  <Badge variant="success">
+                    <Check size={12} className="mr-1" /> Подтверждена
+                  </Badge>
+                ) : null}
               </div>
             </div>
           </Card>

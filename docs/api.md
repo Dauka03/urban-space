@@ -111,21 +111,26 @@ _201 — _:
 | `paymentUrl` | string |  | пример: "https://pay.kaspi.kz/pay/cdbkhvxw" |
 
 ### `GET /api/bookings` 🔒
-Список бронирований
+Список бронирований. Доступно для **USER, ADMIN и SUPER_ADMIN**.
+
+- **USER**: видит только свои бронирования (параметр `userId` игнорируется).
+- **ADMIN / SUPER_ADMIN**: видят все бронирования, поддерживают фильтры `userId` и `cabinetId`.
+- По умолчанию — бронирования за сегодня (по Алматы), сортировка по `startsAt` ASC.
+- `date` фильтрует по конкретному дню; `from`+`to` задают произвольный диапазон. Если задан `date`, `from`/`to` игнорируются.
 
 **Параметры:**
 
-| Имя | В | Тип | Обяз. |
-|---|---|---|---|
-| `date` | query | string |  |
-| `from` | query | string |  |
-| `to` | query | string |  |
-| `cabinetId` | query | string |  |
-| `userId` | query | string |  |
-| `status` | query | "PENDING" | "CONFIRMED" | "EXPIRED" | "CANCELLED" |  |
-| `order` | query | "asc" | "desc" |  |
-| `skip` | query | number |  |
-| `take` | query | number |  |
+| Имя | В | Тип | Обяз. | Заметки |
+|---|---|---|---|---|
+| `date` | query | string |  | Один день (Алматы). По умолчанию — сегодня. Имеет приоритет над from/to. |
+| `from` | query | string |  | Начало диапазона (Алматы). Используется, если не задан date. |
+| `to` | query | string |  | Конец диапазона (Алматы). Используется, если не задан date. |
+| `cabinetId` | query | string |  | Только для ADMIN/SUPER_ADMIN. |
+| `userId` | query | string |  | Только для ADMIN/SUPER_ADMIN (для USER игнорируется). |
+| `status` | query | "PENDING" \| "CONFIRMED" \| "EXPIRED" \| "CANCELLED" |  |  |
+| `order` | query | "asc" \| "desc" |  | По `startsAt`. По умолчанию `asc`. |
+| `skip` | query | number |  | По умолчанию 0. |
+| `take` | query | number |  | 1–100, по умолчанию 50. |
 
 **Ответы:** `200`, `401`, `403`
 
@@ -133,10 +138,10 @@ _200 — _:
 | Поле | Тип | Обяз. | Заметки |
 |---|---|---|---|
 | `total` | number |  | пример: 12 |
-| `items` | object[] |  |  |
+| `items` | object[] |  | Бронирования с полями `slots` (`startsAt`, `endsAt`, `amount`, `dayHours`, `nightHours`), `user` (`id`, `name`, `surname`, `phone`) и `cabinet` (`id`, `name`, `priceDay`, `priceNight`, `location`). |
 
 ### `GET /api/bookings/{id}` 🔒
-Детали бронирования (только ADMIN)
+Детали бронирования. USER видит только своё бронирование (403, если чужое); ADMIN/SUPER_ADMIN — любое.
 
 **Параметры:**
 
@@ -198,7 +203,15 @@ _200 — _:
 | `slots` | object[] |  |  |
 
 ### `PATCH /api/bookings/{id}/reschedule` 🔒
-Перенести бронирование (только USER, только подтверждённые)
+Перенести бронирование (только USER, только подтверждённые).
+
+Заменяет слоты подтверждённого бронирования новыми. Условия:
+- Только владелец бронирования.
+- Бронирование должно быть в статусе **CONFIRMED**.
+- Суммарные дневные и ночные часы (07:00–20:30 Алматы) должны точно совпадать с оригиналом — иначе **422 Unprocessable Entity**.
+- Новые слоты не должны пересекаться с другими активными бронированиями — иначе **409**.
+
+После переноса статус остаётся CONFIRMED, администраторы получают уведомление в WhatsApp.
 
 **Параметры:**
 
@@ -209,10 +222,10 @@ _200 — _:
 **Тело запроса** (`application/json`):
 | Поле | Тип | Обяз. | Заметки |
 |---|---|---|---|
-| `slots` | BookingSlotDto[] | да | New set of time slots. Must have identical total daytime (07:00–20:30) and nighttime hours as the original booking. |
+| `slots` | BookingSlotDto[] | да | Новый набор слотов. Суммарные дневные (07:00–20:30) и ночные часы должны совпадать с оригиналом. |
 
 
-**Ответы:** `200`, `401`, `403`, `404`, `409`
+**Ответы:** `200`, `401`, `403`, `404`, `409`, `422`
 
 _200 — _:
 | Поле | Тип | Обяз. | Заметки |

@@ -7,6 +7,7 @@ import { BookingsTab } from './BookingsTab'
 import { CabinetsTab } from './CabinetsTab'
 import { LocationsTab } from './LocationsTab'
 import { CategoriesTab } from './CategoriesTab'
+import { AdminsTab } from './AdminsTab'
 
 // `superOnly` tabs map to endpoints the API restricts to SUPER_ADMIN.
 const TABS = [
@@ -15,6 +16,7 @@ const TABS = [
   { key: 'cabinets', label: 'Кабинеты', superOnly: false },
   { key: 'locations', label: 'Локации', superOnly: true },
   { key: 'categories', label: 'Категории', superOnly: true },
+  { key: 'admins', label: 'Администраторы', superOnly: true },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -53,6 +55,7 @@ export default function Admin() {
       {tab === 'cabinets' && <CabinetsTab />}
       {tab === 'locations' && <LocationsTab />}
       {tab === 'categories' && <CategoriesTab />}
+      {tab === 'admins' && <AdminsTab />}
     </div>
   )
 }
