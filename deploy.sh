@@ -23,7 +23,7 @@ ssh "$VPS_USER@$VPS_IP" "
   docker run -d \
     --name urban-space \
     --restart unless-stopped \
-    -p 80:80 \
+    -p 8080:80 \
     $IMAGE:latest
   echo '✅ Done!'
 "
