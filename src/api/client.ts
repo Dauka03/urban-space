@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/store/authStore'
 
-const BASE_URL = 'http://150.136.246.222:3000'
+const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://150.136.246.222:3000'
 
 export class ApiError extends Error {
   readonly status: number
