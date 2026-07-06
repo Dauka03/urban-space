@@ -37,10 +37,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging
-            docker stop urban-space-staging || true
-            docker rm urban-space-staging || true
-            docker run -d \
+            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging
+            sudo docker stop urban-space-staging || true
+            sudo docker rm urban-space-staging || true
+            sudo docker run -d \
               --name urban-space-staging \
               -p 80:80 \
               --restart unless-stopped \
@@ -76,10 +76,10 @@ jobs:
           username: ${{ secrets.SSH_USER_PROD }}
           key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
           script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest
-            docker stop urban-space-prod || true
-            docker rm urban-space-prod || true
-            docker run -d \
+            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest
+            sudo docker stop urban-space-prod || true
+            sudo docker rm urban-space-prod || true
+            sudo docker run -d \
               --name urban-space-prod \
               -p 80:80 \
               --restart unless-stopped \
