@@ -30,6 +30,15 @@ jobs:
           build-args: |
             VITE_API_URL=${{ secrets.VITE_API_URL_TEST }}
 
+      - name: Copy compose file to test server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST_TEST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.staging.yml"
+          target: "~/urban-space/"
+
       - name: Deploy to test server
         uses: appleboy/ssh-action@v1
         with:
@@ -37,13 +46,12 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging
-            sudo docker rm -f urban-space-staging || true
-            sudo docker run -d \
-              --name urban-space-staging \
-              -p 80:80 \
-              --restart unless-stopped \
-              ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging
+            cd ~/urban-space
+            OLD_PID=$(sudo docker inspect --format '{{.State.Pid}}' urban-space-staging 2>/dev/null || true)
+            [ -n "$OLD_PID" ] && [ "$OLD_PID" != "0" ] && sudo kill -9 $OLD_PID 2>/dev/null || true
+            sleep 1
+            sudo docker rm urban-space-staging 2>/dev/null || true
+            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging sudo -E docker compose -f docker-compose.staging.yml up -d
 
   deploy-prod:
     if: github.ref == 'refs/heads/main'
@@ -68,6 +76,15 @@ jobs:
           build-args: |
             VITE_API_URL=${{ secrets.VITE_API_URL_PROD }}
 
+      - name: Copy compose file to prod server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST_PROD }}
+          username: ${{ secrets.SSH_USER_PROD }}
+          password: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          source: "docker-compose.prod.yml"
+          target: "~/urban-space/"
+
       - name: Deploy to prod server
         uses: appleboy/ssh-action@v1
         with:
@@ -75,10 +92,9 @@ jobs:
           username: ${{ secrets.SSH_USER_PROD }}
           password: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
           script: |
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest
-            sudo docker rm -f urban-space-prod || true
-            sudo docker run -d \
-              --name urban-space-prod \
-              -p 80:80 \
-              --restart unless-stopped \
-              ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest
+            cd ~/urban-space
+            OLD_PID=$(sudo docker inspect --format '{{.State.Pid}}' urban-space-prod 2>/dev/null || true)
+            [ -n "$OLD_PID" ] && [ "$OLD_PID" != "0" ] && sudo kill -9 $OLD_PID 2>/dev/null || true
+            sleep 1
+            sudo docker rm urban-space-prod 2>/dev/null || true
+            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest sudo -E docker compose -f docker-compose.prod.yml up -d
