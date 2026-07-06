@@ -65,7 +65,7 @@ export default function Home() {
 
   return (
     <div className="max-w-screen-sm mx-auto px-4 py-5">
-      <h1 className="text-2xl font-bold text-text mb-4">Найдите рабочее мест</h1>
+      <h1 className="text-2xl font-bold text-text mb-4">Найдите рабочее место</h1>
 
       <div className="mb-4">
         <Input
@@ -136,14 +136,21 @@ export default function Home() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filtered.map((cabinet) => (
-            <CabinetCard key={cabinet.id} cabinet={cabinet} />
-          ))}
-          {filtered.length === 0 && (
-            <p className="col-span-full text-center text-text-secondary text-sm py-12">Кабинеты не найдены</p>
-          )}
-        </div>
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-surface-2 flex items-center justify-center mb-4">
+              <Search size={28} className="text-text-secondary opacity-50" />
+            </div>
+            <p className="text-base font-medium text-text mb-1">Кабинеты не найдены</p>
+            <p className="text-sm text-text-secondary">Попробуйте изменить фильтры или поисковый запрос</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filtered.map((cabinet) => (
+              <CabinetCard key={cabinet.id} cabinet={cabinet} />
+            ))}
+          </div>
+        )}
       )}
     </div>
   )
