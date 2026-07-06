@@ -38,8 +38,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging
-            sudo docker stop urban-space-staging || true
-            sudo docker rm urban-space-staging || true
+            sudo docker rm -f urban-space-staging || true
             sudo docker run -d \
               --name urban-space-staging \
               -p 80:80 \
@@ -77,8 +76,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
           script: |
             sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest
-            sudo docker stop urban-space-prod || true
-            sudo docker rm urban-space-prod || true
+            sudo docker rm -f urban-space-prod || true
             sudo docker run -d \
               --name urban-space-prod \
               -p 80:80 \
