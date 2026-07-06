@@ -135,22 +135,20 @@ export default function Home() {
             </div>
           ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-surface-2 flex items-center justify-center mb-4">
+            <Search size={28} className="text-text-secondary opacity-50" />
+          </div>
+          <p className="text-base font-medium text-text mb-1">Кабинеты не найдены</p>
+          <p className="text-sm text-text-secondary">Попробуйте изменить фильтры или поисковый запрос</p>
+        </div>
       ) : (
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-surface-2 flex items-center justify-center mb-4">
-              <Search size={28} className="text-text-secondary opacity-50" />
-            </div>
-            <p className="text-base font-medium text-text mb-1">Кабинеты не найдены</p>
-            <p className="text-sm text-text-secondary">Попробуйте изменить фильтры или поисковый запрос</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {filtered.map((cabinet) => (
-              <CabinetCard key={cabinet.id} cabinet={cabinet} />
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {filtered.map((cabinet) => (
+            <CabinetCard key={cabinet.id} cabinet={cabinet} />
+          ))}
+        </div>
       )}
     </div>
   )
