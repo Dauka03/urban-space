@@ -73,7 +73,7 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST_PROD }}
           username: ${{ secrets.SSH_USER_PROD }}
-          key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          password: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
           script: |
             sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest
             sudo docker rm -f urban-space-prod || true
