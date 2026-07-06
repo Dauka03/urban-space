@@ -1,0 +1,7 @@
+services:
+  frontend:
+    image: ${DOCKER_IMAGE}
+    container_name: urban-space-staging
+    ports:
+      - "80:80"
+    restart: unless-stopped
