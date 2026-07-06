@@ -65,7 +65,7 @@ export default function Home() {
 
   return (
     <div className="max-w-screen-sm mx-auto px-4 py-5">
-      <h1 className="text-2xl font-bold text-text mb-4">Найдите рабочее место</h1>
+      <h1 className="text-2xl font-bold text-text mb-4">Найдите рабочее мест</h1>
 
       <div className="mb-4">
         <Input

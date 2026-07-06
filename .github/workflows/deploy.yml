@@ -47,12 +47,12 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/urban-space
-            OLD_PID=$(sudo docker inspect --format '{{.State.Pid}}' urban-space-staging 2>/dev/null || true)
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging
+            OLD_PID=$(docker inspect --format '{{.State.Pid}}' urban-space-staging 2>/dev/null || true)
             [ -n "$OLD_PID" ] && [ "$OLD_PID" != "0" ] && sudo kill -9 $OLD_PID 2>/dev/null || true
-            sleep 1
-            sudo docker rm urban-space-staging 2>/dev/null || true
-            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging sudo -E docker compose -f docker-compose.staging.yml pull
-            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging sudo -E docker compose -f docker-compose.staging.yml up -d
+            sleep 2
+            docker rm -f urban-space-staging 2>/dev/null || true
+            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:staging docker compose -f docker-compose.staging.yml up -d
 
   deploy-prod:
     if: github.ref == 'refs/heads/main'
@@ -94,9 +94,9 @@ jobs:
           password: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
           script: |
             cd ~/urban-space
-            OLD_PID=$(sudo docker inspect --format '{{.State.Pid}}' urban-space-prod 2>/dev/null || true)
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest
+            OLD_PID=$(docker inspect --format '{{.State.Pid}}' urban-space-prod 2>/dev/null || true)
             [ -n "$OLD_PID" ] && [ "$OLD_PID" != "0" ] && sudo kill -9 $OLD_PID 2>/dev/null || true
-            sleep 1
-            sudo docker rm urban-space-prod 2>/dev/null || true
-            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest sudo -E docker compose -f docker-compose.prod.yml pull
-            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest sudo -E docker compose -f docker-compose.prod.yml up -d
+            sleep 2
+            docker rm -f urban-space-prod 2>/dev/null || true
+            DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/urban-space:latest docker compose -f docker-compose.prod.yml up -d
