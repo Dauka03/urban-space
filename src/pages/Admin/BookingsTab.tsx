@@ -33,7 +33,6 @@ export function BookingsTab() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   const load = () => {
-    setLoading(true)
     bookingsApi
       .list({ order: 'desc', take: 100 })
       .then((res) => setBookings(res.items))

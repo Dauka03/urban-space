@@ -11,7 +11,8 @@ interface ProfileSheetProps {
 
 /** Account panel that slides down from the top of the screen (replaces the /profile page nav). */
 export function ProfileSheet({ open, onClose }: ProfileSheetProps) {
-  const { user, logout } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
 
   // Close on Escape and lock body scroll while open.

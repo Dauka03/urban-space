@@ -46,11 +46,11 @@ export function CabinetCard({ cabinet }: CabinetCardProps) {
         <div className="flex items-center gap-3 mt-2.5 text-xs">
           <span className="text-text">
             <span className="text-text-secondary">День </span>
-            {Number(cabinet.priceDay).toLocaleString('ru')} ₸
+            {Number(cabinet.priceDay).toLocaleString('ru')} ₸<span className="text-text-secondary">/час</span>
           </span>
           <span className="text-text">
             <span className="text-text-secondary">Ночь </span>
-            {Number(cabinet.priceNight).toLocaleString('ru')} ₸
+            {Number(cabinet.priceNight).toLocaleString('ru')} ₸<span className="text-text-secondary">/час</span>
           </span>
         </div>
       </div>

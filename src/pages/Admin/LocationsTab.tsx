@@ -13,7 +13,6 @@ export function LocationsTab() {
   const [creating, setCreating] = useState(false)
 
   const load = () => {
-    setLoading(true)
     locationsApi
       .getAll()
       .then(setLocations)

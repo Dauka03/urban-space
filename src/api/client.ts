@@ -26,13 +26,34 @@ async function request<T>(
     body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   })
 
-  if (!response.ok) {
-    throw new ApiError(response.status, response.statusText)
-  }
-
   // 204 / empty bodies (e.g. soft-delete) have nothing to parse.
   if (response.status === 204) return undefined as T
   const text = await response.text()
+
+  if (!response.ok) {
+    // A 401 on a request we sent a token with means the stored token is stale/invalid.
+    // Sign the user out so the UI stops showing them as authenticated.
+    // (Login/OTP requests carry no Authorization header, so their 401 = wrong code is untouched.)
+    if (response.status === 401 && new Headers(headers).has('Authorization')) {
+      useAuthStore.getState().logout()
+    }
+
+    // Prefer the server-provided error message; fall back to statusText
+    // (often empty over HTTP/2) and finally to a generic label.
+    let message = response.statusText || `Request failed (${response.status})`
+    if (text) {
+      try {
+        const parsed = JSON.parse(text) as { message?: string | string[] }
+        if (parsed?.message) {
+          message = Array.isArray(parsed.message) ? parsed.message.join(', ') : parsed.message
+        }
+      } catch {
+        // Non-JSON error body — keep the fallback message.
+      }
+    }
+    throw new ApiError(response.status, message)
+  }
+
   return (text ? JSON.parse(text) : undefined) as T
 }
 

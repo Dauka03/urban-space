@@ -16,7 +16,8 @@ export default function Auth() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { setPhone: savePhone, setMode } = useAuthStore()
+  const savePhone = useAuthStore((s) => s.setPhone)
+  const setMode = useAuthStore((s) => s.setMode)
   const navigate = useNavigate()
   const location = useLocation()
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo

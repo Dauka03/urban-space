@@ -13,7 +13,6 @@ export function CategoriesTab() {
   const [adding, setAdding] = useState(false)
 
   const load = () => {
-    setLoading(true)
     categoriesApi
       .getAll()
       .then(setCategories)

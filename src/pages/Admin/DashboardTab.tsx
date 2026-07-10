@@ -50,10 +50,12 @@ export function DashboardTab() {
   // Custom range only takes effect once both ends are set; otherwise we skip the from/to params.
   const customReady = period !== 'custom' || (!!from && !!to)
 
+  // `setLoading(true)` is triggered by the filter change handlers (below), not here,
+  // to avoid a synchronous setState inside the effect. `ignore` drops out-of-order
+  // responses when filters change faster than requests resolve.
   useEffect(() => {
     if (!customReady) return
-    setLoading(true)
-    setError(null)
+    let ignore = false
 
     const params: DashboardParams = { period }
     if (period === 'custom') {
@@ -67,17 +69,25 @@ export function DashboardTab() {
       bookingsApi.list({ date: todayKey(), order: 'asc', take: 50, ...(cabinetId && { cabinetId }) }),
     ])
       .then(([dashboard, list]) => {
+        if (ignore) return
         setAnalytics(dashboard)
         setBookings(list.items)
+        setError(null)
       })
       .catch((e) => {
+        if (ignore) return
         if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
           setError('Доступ только для администратора')
         } else {
           setError('Не удалось загрузить данные дашборда')
         }
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
   }, [period, from, to, cabinetId, customReady])
 
   const stats = analytics
@@ -111,7 +121,7 @@ export function DashboardTab() {
           {PERIODS.map((p) => (
             <button
               key={p.key}
-              onClick={() => setPeriod(p.key)}
+              onClick={() => { setLoading(true); setPeriod(p.key) }}
               className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors
                 ${period === p.key ? 'bg-primary text-white' : 'bg-surface-2 text-text-secondary hover:bg-border'}`}
             >
@@ -127,7 +137,7 @@ export function DashboardTab() {
                 type="date"
                 value={from}
                 max={to || undefined}
-                onChange={(e) => setFrom(e.target.value)}
+                onChange={(e) => { setLoading(true); setFrom(e.target.value) }}
                 className={controlClass}
               />
               <span className="text-text-secondary">—</span>
@@ -135,7 +145,7 @@ export function DashboardTab() {
                 type="date"
                 value={to}
                 min={from || undefined}
-                onChange={(e) => setTo(e.target.value)}
+                onChange={(e) => { setLoading(true); setTo(e.target.value) }}
                 className={controlClass}
               />
             </>
@@ -143,7 +153,7 @@ export function DashboardTab() {
 
           <select
             value={cabinetId}
-            onChange={(e) => setCabinetId(e.target.value)}
+            onChange={(e) => { setLoading(true); setCabinetId(e.target.value) }}
             className={`${controlClass} max-w-[220px]`}
           >
             <option value="">Все кабинеты</option>

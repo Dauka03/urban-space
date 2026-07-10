@@ -34,19 +34,32 @@ export default function Home() {
         const active = locs.filter((l) => l.isActive).sort((a, b) => a.sortOrder - b.sortOrder)
         setLocations(active)
         setActiveLocationId((prev) => prev ?? active[0]?.id ?? null)
+        // No location to load cabinets for → stop the skeleton instead of spinning forever.
+        if (active.length === 0) setLoadingCabinets(false)
       })
-      .catch(() => {})
+      .catch(() => setLoadingCabinets(false))
     categoriesApi.getAll().then(setCategories).catch(() => {})
   }, [])
 
-  // Reload cabinets whenever the selected address changes (loading is toggled by the caller).
+  // Reload cabinets whenever the selected address changes.
+  // `ignore` guards against out-of-order responses when the address is switched rapidly.
   useEffect(() => {
     if (!activeLocationId) return
+    let ignore = false
     cabinetsApi
       .getAll(activeLocationId)
-      .then(setCabinets)
-      .catch(() => setCabinets([]))
-      .finally(() => setLoadingCabinets(false))
+      .then((data) => {
+        if (!ignore) setCabinets(data)
+      })
+      .catch(() => {
+        if (!ignore) setCabinets([])
+      })
+      .finally(() => {
+        if (!ignore) setLoadingCabinets(false)
+      })
+    return () => {
+      ignore = true
+    }
   }, [activeLocationId])
 
   const selectLocation = (id: string) => {

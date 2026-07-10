@@ -16,7 +16,9 @@ export default function Otp() {
   const [error, setError] = useState('')
   const inputs = useRef<(HTMLInputElement | null)[]>([])
 
-  const { phone, mode, setAuth } = useAuthStore()
+  const phone = useAuthStore((s) => s.phone)
+  const mode = useAuthStore((s) => s.mode)
+  const setAuth = useAuthStore((s) => s.setAuth)
   const navigate = useNavigate()
   const location = useLocation()
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo
