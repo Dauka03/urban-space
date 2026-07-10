@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -136,6 +136,9 @@ export default function SpaceDetail() {
   const [ranges, setRanges] = useState<{ start: number; end: number }[]>([])
   const [pendingStart, setPendingStart] = useState<number | null>(null)
   const [photoIndex, setPhotoIndex] = useState(0)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  // Horizontal swipe tracking for the photo gallery (inline + lightbox).
+  const touchStartX = useRef<number | null>(null)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -185,11 +188,65 @@ export default function SpaceDetail() {
     }
   }, [rescheduleId])
 
+  // Fullscreen photo viewer: Esc to close, arrows to navigate, lock background scroll.
+  useEffect(() => {
+    if (!lightboxOpen) return
+    const n = cabinet?.photos.length ?? 0
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxOpen(false)
+      else if (e.key === 'ArrowLeft') setPhotoIndex((p) => (n ? (p - 1 + n) % n : p))
+      else if (e.key === 'ArrowRight') setPhotoIndex((p) => (n ? (p + 1) % n : p))
+    }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [lightboxOpen, cabinet?.photos.length])
+
+  // Warm the browser cache so swiping/opening feels instant instead of fetching on demand.
+  // All thumbnails are small → preload every one. Full-res originals are heavy → only the
+  // current photo and its immediate neighbours (which the viewer can reach next).
+  useEffect(() => {
+    if (!cabinet) return
+    const sorted = cabinet.photos.slice().sort((a, b) => a.sortOrder - b.sortOrder)
+    const n = sorted.length
+    if (n === 0) return
+    sorted.forEach((p) => {
+      const im = new Image()
+      im.src = p.urlMedium
+    })
+    for (const offset of [0, 1, -1]) {
+      const p = sorted[((photoIndex + offset) % n + n) % n]
+      if (p?.urlOriginal) {
+        const im = new Image()
+        im.src = p.urlOriginal
+      }
+    }
+  }, [cabinet, photoIndex])
+
   if (loading) return <div className="p-8 text-center text-text-secondary">Загрузка...</div>
   if (error || !cabinet) return <div className="p-8 text-center text-text-secondary">{error ?? 'Кабинет не найден'}</div>
 
   const photos = cabinet.photos.slice().sort((a, b) => a.sortOrder - b.sortOrder)
   const equipment = (cabinet.appliancePhotos ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder)
+
+  // Wrap-around photo navigation + horizontal-swipe handlers (shared by the inline gallery and lightbox).
+  const showPhoto = (i: number) => {
+    const n = photos.length
+    if (n > 0) setPhotoIndex(((i % n) + n) % n)
+  }
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return
+    const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current
+    touchStartX.current = null
+    if (Math.abs(dx) > 40) showPhoto(photoIndex + (dx < 0 ? 1 : -1))
+  }
 
   const todayMidnight = (() => {
     const d = new Date()
@@ -408,22 +465,54 @@ export default function SpaceDetail() {
       {/* Photo */}
       <div className="px-4 pt-4">
         <div className="relative">
-          <div className="aspect-video rounded-2xl overflow-hidden bg-surface-2">
+          <div
+            className="aspect-video rounded-2xl overflow-hidden bg-surface-2"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
             {photos[photoIndex] && (
-              <img src={photos[photoIndex].urlMedium} alt={cabinet.name} className="w-full h-full object-cover" />
+              <img
+                src={photos[photoIndex].urlMedium}
+                alt={cabinet.name}
+                onClick={() => setLightboxOpen(true)}
+                draggable={false}
+                decoding="async"
+                className="w-full h-full object-cover cursor-zoom-in select-none"
+              />
             )}
           </div>
+
           {photos.length > 1 && (
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-              {photos.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setPhotoIndex(i)}
-                  aria-label={`Фото ${i + 1}`}
-                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === photoIndex ? 'bg-white' : 'bg-white/50'}`}
-                />
-              ))}
-            </div>
+            <>
+              {/* Prev/next arrows (shown on pointer devices; mobile uses swipe) */}
+              <button
+                type="button"
+                onClick={() => showPhoto(photoIndex - 1)}
+                aria-label="Предыдущее фото"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/35 text-white hidden sm:flex items-center justify-center hover:bg-black/50"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => showPhoto(photoIndex + 1)}
+                aria-label="Следующее фото"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/35 text-white hidden sm:flex items-center justify-center hover:bg-black/50"
+              >
+                <ChevronRight size={18} />
+              </button>
+
+              <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                {photos.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPhotoIndex(i)}
+                    aria-label={`Фото ${i + 1}`}
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${i === photoIndex ? 'bg-white' : 'bg-white/50'}`}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -700,6 +789,60 @@ export default function SpaceDetail() {
           )}
         </div>
       </div>
+
+      {/* Fullscreen photo viewer */}
+      {lightboxOpen && photos[photoIndex] && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90"
+          onClick={() => setLightboxOpen(false)}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(false)}
+            aria-label="Закрыть"
+            className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center hover:bg-white/25"
+          >
+            <X size={22} />
+          </button>
+
+          <img
+            src={photos[photoIndex].urlOriginal || photos[photoIndex].urlMedium}
+            alt={cabinet.name}
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+            decoding="async"
+            className="max-w-full max-h-[85vh] object-contain select-none"
+          />
+
+          {photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); showPhoto(photoIndex - 1) }}
+                aria-label="Предыдущее фото"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center hover:bg-white/25"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); showPhoto(photoIndex + 1) }}
+                aria-label="Следующее фото"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center hover:bg-white/25"
+              >
+                <ChevronRight size={24} />
+              </button>
+              <div className="absolute bottom-5 left-0 right-0 flex justify-center gap-2">
+                {photos.map((_, i) => (
+                  <span key={i} className={`w-2 h-2 rounded-full ${i === photoIndex ? 'bg-white' : 'bg-white/40'}`} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
