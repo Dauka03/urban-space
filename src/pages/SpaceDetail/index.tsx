@@ -144,18 +144,30 @@ export default function SpaceDetail() {
 
   useEffect(() => {
     if (!id) return
+    let ignore = false
     cabinetsApi
       .getById(id)
-      .then(setCabinet)
-      .catch(() => setError('Не удалось загрузить кабинет'))
-      .finally(() => setLoading(false))
+      .then((c) => {
+        if (!ignore) setCabinet(c)
+      })
+      .catch(() => {
+        if (!ignore) setError('Не удалось загрузить кабинет')
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
   }, [id])
 
   useEffect(() => {
     if (!rescheduleId) return
+    let ignore = false
     bookingsApi
       .getById(rescheduleId)
       .then((b) => {
+        if (ignore) return
         setRescheduleBooking(b)
         // Open the calendar on the date/tariff/week the client originally booked.
         const start = new Date(b.startsAt)
@@ -165,7 +177,12 @@ export default function SpaceDetail() {
         const day = (b.slots ?? []).reduce((s, x) => s + x.dayHours, 0)
         if (night > 0 && day === 0) setTariff('night')
       })
-      .catch(() => setRescheduleBooking(null))
+      .catch(() => {
+        if (!ignore) setRescheduleBooking(null)
+      })
+    return () => {
+      ignore = true
+    }
   }, [rescheduleId])
 
   if (loading) return <div className="p-8 text-center text-text-secondary">Загрузка...</div>

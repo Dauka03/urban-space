@@ -19,7 +19,6 @@ export function CabinetsTab() {
   const [photosFor, setPhotosFor] = useState<Cabinet | null>(null)
 
   const loadCabinets = () => {
-    setLoading(true)
     cabinetsApi
       .getAll()
       .then(setCabinets)

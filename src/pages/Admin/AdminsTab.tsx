@@ -12,7 +12,6 @@ export function AdminsTab() {
   const [creating, setCreating] = useState(false)
 
   const load = () => {
-    setLoading(true)
     adminsApi
       .getAll()
       .then(setAdmins)

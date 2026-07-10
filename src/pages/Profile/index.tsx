@@ -11,7 +11,8 @@ const PLANS = [
 ]
 
 export default function Profile() {
-  const { user, logout } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
 
   const handleLogout = () => {
